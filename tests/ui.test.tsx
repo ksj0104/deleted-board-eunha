@@ -33,6 +33,77 @@ const { render, screen, within, waitFor, cleanup, fireEvent } =
 const { default: userEvent } = await import("@testing-library/user-event");
 afterEach(() => cleanup());
 
+test("UI: explicit objectives lead to the right question and explain missing evidence without marking it solved", async () => {
+  let state = applyAction(freshProgress(), { type: "start" }).progress;
+  globalThis.fetch = (async (
+    _url: unknown,
+    options?: { method?: string; body?: string },
+  ) => {
+    if (options?.method === "POST") {
+      const result = applyAction(state, JSON.parse(options.body!));
+      state = result.progress;
+      return Response.json({ ...gameView(state), feedback: result.feedback });
+    }
+    return Response.json(gameView(state));
+  }) as typeof fetch;
+  const user = userEvent.setup({ document: dom.window.document });
+  render(<Game />);
+  const guide = await screen.findByRole("region", {
+    name: "이번 사건의 해결 목표",
+  });
+  assert.equal(guide.querySelectorAll(".goal-list li").length, 3);
+  for (const q of episodes[0].questions)
+    assert.ok(within(guide).getByText(q.prompt));
+  assert.ok(
+    within(guide).getByText(/모든 일상 글을 읽거나 수집할 필요는 없습니다/),
+  );
+  await user.click(within(guide).getByRole("button", { name: /먼저 읽을 글/ }));
+  const entry = screen.getByRole("dialog", {
+    name: episodes[0].records[0].title,
+  });
+  await user.click(within(entry).getByRole("button", { name: "닫기" }));
+  await user.click(
+    within(guide).getByRole("button", { name: "질문 2 답과 근거 작성" }),
+  );
+  const notes = screen.getByRole("dialog", { name: "추리 노트" });
+  const section = document.getElementById("question-1-status")!;
+  assert.equal(
+    document.activeElement,
+    section,
+    "the selected question receives focus",
+  );
+  assert.ok(
+    within(notes).getByText(/글을 수집한 것만으로는 근거가 연결되지 않습니다/),
+  );
+  await user.click(
+    within(section).getByRole("radio", {
+      name: new RegExp(episodes[0].questions[1].options![0]),
+    }),
+  );
+  await waitFor(() => assert.ok(state.drafts[1]?.status));
+  await user.click(within(notes).getByRole("button", { name: "닫기" }));
+  const second = guide.querySelectorAll(".goal-list li")[1] as HTMLElement;
+  assert.ok(within(second).getByText("근거 선택하기"));
+  assert.ok(within(second).getByText("근거 0/2개"));
+  assert.equal(state.solved.length, 0);
+  const board = document.querySelector(".community-board");
+  await user.click(screen.getByRole("button", { name: "해결 목표" }));
+  const goals = screen.getByRole("dialog", { name: "현재 사건의 해결 목표" });
+  await user.click(
+    within(goals).getByRole("button", { name: "질문 3 답과 근거 작성" }),
+  );
+  assert.equal(
+    screen.queryByRole("dialog", { name: "현재 사건의 해결 목표" }),
+    null,
+  );
+  assert.ok(screen.getByRole("dialog", { name: "추리 노트" }));
+  assert.equal(
+    document.activeElement,
+    document.getElementById("question-1-meeting"),
+  );
+  assert.equal(document.querySelector(".community-board"), board);
+});
+
 test(
   "UI: community pagination, reactions and stacked investigation windows preserve the board and saved drafts",
   { timeout: 45000 },

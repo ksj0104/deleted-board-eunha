@@ -17,6 +17,8 @@ import {
 import CommunityBoard, { ResidentAvatar } from "./CommunityBoard";
 import StoryPrologue from "./StoryPrologue";
 import { recordStats } from "../lib/community";
+import InvestigationGuide from "./InvestigationGuide";
+import { investigationGuides, questionPreparation } from "../lib/investigation";
 type Resolution = { title: string; text: string; next: string };
 type View = {
   progress: Progress;
@@ -43,6 +45,8 @@ export default function Game() {
   const [query, setQuery] = useState("");
   const [tool, setTool] = useState<"evidence" | "deductions" | null>(null);
   const [showPrologue, setShowPrologue] = useState(false);
+  const [focusedQuestion, setFocusedQuestion] = useState<string>();
+  const [showGoals, setShowGoals] = useState(false);
   const [selected, setSelected] = useState<RecordFile | null>(null);
   const [recordWindow, setRecordWindow] = useState(0);
   const [help, setHelp] = useState(false);
@@ -130,6 +134,7 @@ export default function Game() {
   const goTab = (next: Tab) => {
     flushNote();
     setQuery("");
+    setFocusedQuestion(undefined);
     if (next === "evidence" || next === "deductions") {
       setTool(next);
       return;
@@ -137,6 +142,12 @@ export default function Game() {
     setTool(null);
     setTab(next);
     mainRef.current?.focus();
+  };
+  const openQuestion = (id?: string) => {
+    flushNote();
+    setQuery("");
+    setFocusedQuestion(id);
+    setTool("deductions");
   };
   const visit = async (id: number) => {
     flushNote();
@@ -150,6 +161,8 @@ export default function Game() {
       setShowHint(false);
       setSelected(null);
       setShowPrologue(false);
+      setFocusedQuestion(undefined);
+      setShowGoals(false);
       mainRef.current?.focus();
     }
   };
@@ -397,13 +410,24 @@ export default function Game() {
               </div>
             </div>
             {tab === "board" && (
-              <CommunityBoard
-                key={e.id}
-                episode={e}
-                progress={p}
-                onOpen={openRecord}
-                onStory={() => setShowPrologue(true)}
-              />
+              <>
+                <InvestigationGuide
+                  episode={e}
+                  progress={p}
+                  feedback={feedback}
+                  onQuestion={openQuestion}
+                  onOpen={openRecord}
+                  onHint={() => setShowHint(true)}
+                  onResolution={() => setShowResolution(e.id)}
+                />
+                <CommunityBoard
+                  key={e.id}
+                  episode={e}
+                  progress={p}
+                  onOpen={openRecord}
+                  onStory={() => setShowPrologue(true)}
+                />
+              </>
             )}
             {tab === "notes" && (
               <section className="notes-panel">
@@ -533,7 +557,9 @@ export default function Game() {
         </div>
         {p.started && (
           <div className="investigation-dock" aria-label="조사 도구">
-            <span>CASE {pad(e.id)}</span>
+            <button onClick={() => setShowGoals(true)} aria-haspopup="dialog">
+              해결 목표
+            </button>
             <button onClick={() => goTab("evidence")} aria-haspopup="dialog">
               ⌑ 증거 보관함 <b>{p.pinned.length}</b>
             </button>
@@ -541,6 +567,35 @@ export default function Game() {
               ✎ 추리 노트
             </button>
           </div>
+        )}
+        {showGoals && (
+          <Dialog
+            wide
+            label="현재 사건의 해결 목표"
+            onClose={() => setShowGoals(false)}
+          >
+            <InvestigationGuide
+              episode={e}
+              progress={p}
+              feedback={feedback}
+              onQuestion={(id) => {
+                setShowGoals(false);
+                openQuestion(id);
+              }}
+              onOpen={(r) => {
+                setShowGoals(false);
+                openRecord(r);
+              }}
+              onHint={() => {
+                setShowGoals(false);
+                setShowHint(true);
+              }}
+              onResolution={() => {
+                setShowGoals(false);
+                setShowResolution(e.id);
+              }}
+            />
+          </Dialog>
         )}
         {tool === "evidence" && (
           <Dialog wide label="증거 보관함" onClose={() => setTool(null)}>
@@ -609,7 +664,16 @@ export default function Game() {
           </Dialog>
         )}
         {tool === "deductions" && (
-          <Dialog wide label="추리 노트" onClose={() => setTool(null)}>
+          <Dialog
+            wide
+            label="추리 노트"
+            onClose={() => setTool(null)}
+            focusTarget={
+              focusedQuestion
+                ? `question-${e.id}-${focusedQuestion}`
+                : undefined
+            }
+          >
             <div className="tool-window-heading">
               <span className="eyebrow coral">
                 CASE {pad(e.id)} · DEDUCTION NOTES
@@ -630,8 +694,11 @@ export default function Game() {
             </div>
             <div className="deduction-intro">
               <p>
-                <strong>답과 근거가 함께 맞아야</strong> 가설이 입증됩니다.
-                필요한 기록을 먼저 증거 보관함에 수집하세요.
+                <strong>
+                  각 질문에 답을 입력하고, 바로 아래에서 근거를 선택하세요.
+                </strong>
+                글을 수집한 것만으로는 근거가 연결되지 않습니다. 세 질문을 채운
+                뒤 맨 아래 ‘세 가설 검증하기’를 누르면 됩니다.
               </p>
               <button className="secondary" onClick={() => setShowHint(true)}>
                 힌트 {level}/3
@@ -649,7 +716,12 @@ export default function Game() {
               const draft = makeDraft(q),
                 result = feedback?.[q.id];
               return (
-                <section className="deduction-card" key={`${e.id}-${q.id}`}>
+                <section
+                  className="deduction-card"
+                  key={`${e.id}-${q.id}`}
+                  id={`question-${e.id}-${q.id}`}
+                  tabIndex={-1}
+                >
                   <div className="question-header">
                     <span className="question-number">{pad(i + 1)}</span>
                     <h2>{q.prompt}</h2>
@@ -662,6 +734,18 @@ export default function Game() {
                           : "재검토"}
                       </span>
                     )}
+                  </div>
+                  <div className="question-guidance">
+                    <p>{investigationGuides[e.id - 1].tips[q.id]}</p>
+                    <span>
+                      ①{" "}
+                      {q.kind === "code"
+                        ? "값 입력 후 ‘입력 적용’"
+                        : q.kind === "order"
+                          ? "위아래 화살표로 순서 정하기"
+                          : "답 하나 선택"}{" "}
+                      → ② 아래에서 근거 {q.evidenceCount}개 선택
+                    </span>
                   </div>
                   {q.kind === "choice" && (
                     <fieldset className="choice-list" disabled={pending > 0}>
@@ -747,6 +831,10 @@ export default function Game() {
                     </span>
                     <small>정확히 {q.evidenceCount}개 선택</small>
                   </div>
+                  <p className="proof-help">
+                    수집한 글 중 이 답을 직접 뒷받침하는 기록에 체크하세요.
+                    ‘원문’을 눌러 다시 읽을 수 있습니다.
+                  </p>
                   {evidence.length ? (
                     <div className="proof-options">
                       {evidence.map((r) => {
@@ -814,8 +902,15 @@ export default function Game() {
             })}
             <div className="submit-row">
               <p>
-                시도 횟수 제한 없음 <span>·</span> {p.attempts[e.id] ?? 0}회
-                검토
+                답과 근거 준비{" "}
+                {
+                  e.questions.filter((q) => {
+                    const s = questionPreparation(e, q, p, feedback);
+                    return s.confirmed || (s.ready && !s.needsReview);
+                  }).length
+                }
+                /3 <span>·</span> 시도 횟수 제한 없음 <span>·</span>{" "}
+                {p.attempts[e.id] ?? 0}회 검토
               </p>
               <button
                 className="primary"
@@ -943,6 +1038,10 @@ export default function Game() {
               </button>
             </footer>
             <div className="document-tools">
+              <p className="record-next-help">
+                단서를 찾았다면 증거로 수집한 뒤, 추리 노트에서 해당 질문의
+                근거로 선택하세요.
+              </p>
               <button className="text-button" onClick={() => goTab("evidence")}>
                 증거 보관함 열기 ↗
               </button>

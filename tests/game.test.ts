@@ -12,6 +12,52 @@ import { walkthrough } from "./walkthrough";
 import { communityPosts } from "../lib/community";
 import { episodeStories } from "../lib/stories";
 import { existsSync } from "node:fs";
+import { investigationGuides, questionPreparation } from "../lib/investigation";
+
+test("investigation guidance covers all questions and distinguishes prepared answers from verified conclusions", () => {
+  for (const ep of episodes) {
+    const guide = investigationGuides[ep.id - 1];
+    assert.ok(guide.situation.length > 30);
+    assert.deepEqual(
+      Object.keys(guide.tips).sort(),
+      ep.questions.map((q) => q.id).sort(),
+    );
+    for (const q of ep.questions) assert.ok(guide.tips[q.id].length > 20);
+  }
+  const ep = episodes[0],
+    q = ep.questions[0];
+  let p = freshProgress();
+  assert.equal(questionPreparation(ep, q, p).label, "답 찾는 중");
+  p = applyAction(p, {
+    type: "draft",
+    question: q.id,
+    draft: { answer: walkthrough[0].alias[0], evidence: [] },
+  }).progress;
+  assert.equal(questionPreparation(ep, q, p).label, "근거 선택하기");
+  for (const id of ["1-2", "1-3"])
+    p = applyAction(p, { type: "pin", record: id }).progress;
+  p = applyAction(p, {
+    type: "draft",
+    question: q.id,
+    draft: { answer: walkthrough[0].alias[0], evidence: ["1-2", "1-3"] },
+  }).progress;
+  const prepared = questionPreparation(ep, q, p);
+  assert.equal(prepared.ready, true);
+  assert.equal(prepared.confirmed, false);
+  const wrong = questionPreparation(ep, q, p, {
+    alias: { answer: true, evidence: false },
+  });
+  assert.equal(wrong.label, "근거 다시 검토");
+  assert.equal(wrong.needsReview, true);
+  assert.equal(
+    questionPreparation(ep, q, p, { alias: { answer: true, evidence: true } })
+      .confirmed,
+    true,
+  );
+  p = applyAction(p, { type: "pin", record: "1-2" }).progress;
+  assert.equal(questionPreparation(ep, q, p).ready, false);
+  assert.equal(questionPreparation(ep, q, p).evidenceCount, 1);
+});
 
 test("legacy saves gain prologue history and reactions without losing progress; everyday posts obey locks and cannot replace proof", () => {
   let p = freshProgress();

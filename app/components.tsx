@@ -14,11 +14,13 @@ export function Dialog({
   children,
   onClose,
   wide = false,
+  focusTarget,
 }: {
   label: string;
   children: React.ReactNode;
   onClose: () => void;
   wide?: boolean;
+  focusTarget?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const error = useContext(GameErrorContext);
@@ -34,6 +36,20 @@ export function Dialog({
       if (--openDialogs === 0) document.body.style.overflow = previousOverflow;
     };
   }, []);
+  useEffect(() => {
+    const dialog = ref.current;
+    const target = focusTarget ? document.getElementById(focusTarget) : null;
+    if (dialog && target && dialog.contains(target)) {
+      target.focus({ preventScroll: true });
+      dialog.scrollTop = Math.max(
+        0,
+        dialog.scrollTop +
+          target.getBoundingClientRect().top -
+          dialog.getBoundingClientRect().top -
+          24,
+      );
+    }
+  }, [focusTarget]);
   return (
     <dialog
       ref={ref}

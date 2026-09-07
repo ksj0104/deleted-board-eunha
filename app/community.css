@@ -1,4 +1,242 @@
 /* Resident community and investigation windows */
+.investigation-guide {
+  background: #1c3027;
+  border: 1px solid #536c52;
+  border-radius: 8px;
+  padding: 23px;
+  margin-bottom: 25px;
+}
+.investigation-guide > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.investigation-guide h2 {
+  font: 500 23px/1.5 var(--serif);
+  margin: 7px 0;
+  color: #f4eddc;
+}
+.investigation-guide header p {
+  font-size: 12px;
+  color: #bdcbb2;
+  margin: 0;
+  line-height: 1.8;
+}
+.goal-total {
+  white-space: nowrap;
+  font-size: 10px;
+  color: #cfdec0;
+  background: #304a34;
+  padding: 5px 9px;
+  border-radius: 4px;
+}
+.goal-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.goal-list li {
+  min-width: 0;
+  border: 1px solid #425b40;
+  padding: 14px;
+  border-radius: 5px;
+  background: #253c2f;
+  display: flex;
+  flex-direction: column;
+}
+.goal-list li.confirmed {
+  border-color: #85a66a;
+}
+.goal-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 5px;
+  margin-bottom: 9px;
+  color: #c6d2b2;
+  font-size: 10px;
+}
+.goal-label span:last-child {
+  color: #e7b590;
+}
+.goal-list strong {
+  font-size: 14px;
+  color: #f5eed9;
+  line-height: 1.7;
+}
+.goal-list p {
+  font-size: 11px;
+  line-height: 1.8;
+  color: #bdc9ae;
+  margin: 8px 0 12px;
+  flex: 1;
+}
+.goal-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 14px;
+  font-size: 10px;
+  color: #d5dfc2;
+  margin-bottom: 9px;
+}
+.goal-list .text-button {
+  text-align: left;
+  font-size: 11px;
+  padding: 3px 0;
+}
+.next-investigation-step {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  justify-content: space-between;
+  background: #f0e7d1;
+  color: #394932;
+  border-radius: 5px;
+  margin-top: 15px;
+  padding: 15px 17px;
+}
+.next-investigation-step b {
+  font-size: 11px;
+  color: #48633d;
+}
+.next-investigation-step p {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.75;
+}
+.next-investigation-step .primary {
+  background: #36543b;
+  color: #f7f0dd;
+  font-size: 11px;
+  padding: 10px 14px;
+  flex-shrink: 0;
+  max-width: 46%;
+  white-space: normal;
+  text-align: left;
+}
+.investigation-guide > footer {
+  display: flex;
+  gap: 15px;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+}
+.investigation-guide > footer p {
+  font-size: 10px;
+  line-height: 1.8;
+  color: #b7c7a9;
+  margin: 0;
+}
+.investigation-guide > footer .text-button {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.question-guidance {
+  border-left: 2px solid #91aa75;
+  padding: 2px 0 2px 13px;
+  margin: 0 0 20px;
+}
+.question-guidance p {
+  font-size: 12px;
+  color: #c8d3b6;
+  margin: 0 0 5px;
+}
+.question-guidance span {
+  font-size: 10px;
+  color: #e1ba97;
+}
+.proof-help {
+  font-size: 11px;
+  line-height: 1.8;
+  color: #b6c9ab;
+  margin: -3px 0 12px;
+}
+.record-next-help {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: #bacba9;
+  margin: 0;
+}
+.document-tools {
+  flex-wrap: wrap;
+}
+.deduction-card:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 4px;
+}
+@media (max-width: 900px) {
+  .goal-list {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .goal-list li {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 12px;
+    padding: 12px 14px;
+  }
+  .goal-label {
+    grid-column: 1 / -1;
+    margin-bottom: 4px;
+  }
+  .goal-list strong {
+    font-size: 13px;
+    grid-column: 1 / -1;
+  }
+  .goal-list p {
+    grid-column: 1 / -1;
+    margin: 4px 0 7px;
+  }
+  .goal-progress {
+    margin: 0;
+    align-items: center;
+  }
+  .goal-list .text-button {
+    font-size: 10px;
+  }
+  .next-investigation-step {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .next-investigation-step .primary {
+    max-width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+}
+@media (max-width: 600px) {
+  .investigation-guide {
+    padding: 15px;
+  }
+  .investigation-guide > header {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 13px;
+  }
+  .investigation-guide h2 {
+    font-size: 21px;
+  }
+  .investigation-guide header p {
+    font-size: 11px;
+  }
+  .investigation-guide > footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .goal-list li {
+    padding: 11px;
+  }
+  .goal-progress {
+    font-size: 9px;
+    gap: 5px 7px;
+  }
+}
 .community-main {
   max-width: 1470px;
   padding-top: 25px;
