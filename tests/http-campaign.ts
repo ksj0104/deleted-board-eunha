@@ -1,0 +1,114 @@
+import assert from "node:assert/strict";
+import { episodes } from "../lib/cases";
+import { walkthrough } from "./walkthrough";
+const base = process.env.GAME_TEST_URL ?? "http://localhost:3000";
+let cookie = "";
+async function request(action?: unknown, expected = 200) {
+  const r = await fetch(`${base}/api/game`, {
+    method: action ? "POST" : "GET",
+    headers: {
+      ...(cookie ? { Cookie: cookie } : {}),
+      ...(action ? { "Content-Type": "application/json", Origin: base } : {}),
+    },
+    ...(action ? { body: JSON.stringify(action) } : {}),
+  });
+  const setCookie = r.headers.get("set-cookie");
+  if (setCookie) cookie = setCookie.split(";")[0];
+  const data = (await r.json()) as any;
+  assert.equal(r.status, expected, JSON.stringify(data));
+  return data;
+}
+let view = await request();
+assert.equal(view.progress.solved.length, 0);
+assert.ok(cookie);
+assert.match(
+  (await fetch(`${base}/api/game`)).headers.get("set-cookie")!,
+  /HttpOnly; SameSite=Lax/,
+);
+await request({ type: "visit", episode: 8 }, 400);
+await request({ type: "pin", record: "8-1" }, 400);
+await request({ type: "start" });
+for (const ep of episodes) {
+  await request({ type: "visit", episode: ep.id });
+  const incorrect = await request({ type: "solve" });
+  assert.equal(incorrect.progress.solved.length, ep.id - 1);
+  for (const r of ep.records) {
+    await request({ type: "read", record: r.id });
+    await request({ type: "pin", record: r.id });
+  }
+  await request({ type: "note", text: `HTTP ${ep.id}: 서버에 저장한 메모` });
+  await request({ type: "hint" });
+  for (const [question, [answer, evidence]] of Object.entries(
+    walkthrough[ep.id - 1],
+  ))
+    await request({ type: "draft", question, draft: { answer, evidence } });
+  view = await request({ type: "solve" });
+  assert.equal(view.progress.solved.length, ep.id);
+  assert.ok(view.resolutions[ep.id]);
+  const reloaded = await request();
+  assert.deepEqual(reloaded.progress, view.progress);
+  assert.ok(reloaded.progress.notes[ep.id]);
+  console.log(
+    `PASS HTTP episode ${ep.id}: all records, hints, note, wrong answer, solve and reload`,
+  );
+}
+view = await request({ type: "ending", ending: "public" });
+assert.equal(view.ending.title, "다시 열린 게시판");
+view = await request({ type: "ending", ending: "audit" });
+assert.equal(view.ending.title, "조용히 남은 원본");
+const firstCookie = cookie;
+cookie = "";
+assert.equal((await request()).progress.solved.length, 0);
+assert.notEqual(cookie, firstCookie);
+cookie = firstCookie;
+assert.equal((await request()).progress.solved.length, 8);
+const forged = await fetch(`${base}/api/game`, {
+  method: "POST",
+  headers: {
+    Cookie: cookie,
+    Origin: "https://unrelated.example",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ type: "reset" }),
+});
+assert.equal(forged.status, 403);
+const malformed = await fetch(`${base}/api/game`, {
+  method: "POST",
+  headers: { Cookie: cookie, "Content-Type": "application/json" },
+  body: "{oops",
+});
+assert.equal(malformed.status, 400, await malformed.text());
+const oversized = await fetch(`${base}/api/game`, {
+  method: "POST",
+  headers: { Cookie: cookie, "Content-Type": "application/json" },
+  body: " ".repeat(13000),
+});
+assert.equal(oversized.status, 413, await oversized.text());
+await request({ type: "reset" });
+assert.equal((await request()).progress.solved.length, 0);
+console.log(
+  "PASS HTTP: both endings, independent sessions, reload, cross-origin rejection, malformed/oversized requests and reset",
+);
+
+const home = await fetch(base);
+assert.equal(home.status, 200);
+const html = await home.text();
+assert.match(html, /삭제된 게시판/);
+assert.match(html, /lang="ko"/);
+assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
+assert.match(html, /property="og:image"/);
+const card = await fetch(`${base}/og.png`);
+assert.equal(card.status, 200);
+assert.match(card.headers.get("content-type") ?? "", /image\/png/);
+const assets = [
+  ...html.matchAll(/(?:src|href)="(\/assets\/[^"?#]+\.(?:js|css))"/g),
+].map((m) => m[1]);
+assert.ok(
+  assets.length >= 2,
+  "HTML references the client JavaScript and stylesheet",
+);
+for (const path of new Set(assets))
+  assert.equal((await fetch(base + path)).status, 200, path);
+console.log(
+  "PASS HTTP: Korean HTML, social metadata, generated card, stylesheet and client scripts",
+);
