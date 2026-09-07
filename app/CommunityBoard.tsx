@@ -105,12 +105,6 @@ export default function CommunityBoard({
       <div className="community-notice">
         <strong>마을 알림</strong>
         <span>{episodeStories[episode.id - 1].communityNote}</span>
-      </div>
-      <div className="investigation-strip">
-        <span>
-          <b>지금 조사할 일</b>
-          {episode.objective}
-        </span>
         <button className="text-button" onClick={onStory}>
           도입 이야기 다시 보기 ↗
         </button>

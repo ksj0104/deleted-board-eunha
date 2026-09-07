@@ -414,24 +414,13 @@ export default function Game() {
               </div>
             </div>
             {tab === "board" && (
-              <>
-                <InvestigationGuide
-                  episode={e}
-                  progress={p}
-                  feedback={feedback}
-                  onQuestion={openQuestion}
-                  onOpen={openRecord}
-                  onHint={() => setShowHint(true)}
-                  onResolution={() => setShowResolution(e.id)}
-                />
-                <CommunityBoard
-                  key={e.id}
-                  episode={e}
-                  progress={p}
-                  onOpen={openRecord}
-                  onStory={() => setShowPrologue(true)}
-                />
-              </>
+              <CommunityBoard
+                key={e.id}
+                episode={e}
+                progress={p}
+                onOpen={openRecord}
+                onStory={() => setShowPrologue(true)}
+              />
             )}
             {tab === "notes" && (
               <section className="notes-panel">

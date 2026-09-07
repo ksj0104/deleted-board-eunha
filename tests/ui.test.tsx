@@ -34,7 +34,7 @@ const { render, screen, within, waitFor, cleanup, fireEvent } =
 const { default: userEvent } = await import("@testing-library/user-event");
 afterEach(() => cleanup());
 
-test("UI: a central case leads to record-driven questions with a reason, purpose and focused notes", async () => {
+test("UI: goals appear only in a modal and lead to record-driven questions and focused notes", async () => {
   let state = applyAction(freshProgress(), { type: "start" }).progress;
   globalThis.fetch = (async (
     _url: unknown,
@@ -49,9 +49,23 @@ test("UI: a central case leads to record-driven questions with a reason, purpose
   }) as typeof fetch;
   const user = userEvent.setup({ document: dom.window.document });
   render(<Game />);
-  const guide = await screen.findByRole("region", {
-    name: "이번 사건의 해결 목표",
-  });
+  await screen.findByRole("heading", { name: "은하아파트 주민마당" });
+  const board = document.querySelector(".community-board");
+  assert.equal(
+    screen.queryByRole("region", { name: "이번 사건의 해결 목표" }),
+    null,
+  );
+  assert.equal(screen.queryByText(episodes[0].objective), null);
+  const openGoals = async () => {
+    await user.click(screen.getByRole("button", { name: "해결 목표" }));
+    const dialog = screen.getByRole("dialog", {
+      name: "현재 사건의 해결 목표",
+    });
+    return within(dialog).getByRole("region", {
+      name: "이번 사건의 해결 목표",
+    });
+  };
+  let guide = await openGoals();
   assert.ok(within(guide).getByText(mainCase.question));
   assert.ok(
     within(guide).getByRole("heading", { name: caseThreads[0].question }),
@@ -69,6 +83,7 @@ test("UI: a central case leads to record-driven questions with a reason, purpose
   await waitFor(() => assert.ok(state.read.includes("1-1")));
   assert.ok(within(entry).getByText(caseThreads[0].inquiries.status.because));
   await user.click(within(entry).getByRole("button", { name: "닫기" }));
+  guide = await openGoals();
   assert.equal(guide.querySelectorAll(".goal-list li").length, 1);
   await user.click(
     within(guide).getByRole("button", {
@@ -99,10 +114,20 @@ test("UI: a central case leads to record-driven questions with a reason, purpose
   );
   await waitFor(() => assert.ok(state.drafts[1]?.status));
   await user.click(within(notes).getByRole("button", { name: "닫기" }));
+  guide = await openGoals();
   const second = guide.querySelectorAll(".goal-list li")[0] as HTMLElement;
   assert.ok(within(second).getByText("근거 선택하기"));
   assert.ok(within(second).getByText("근거 0/2개"));
   assert.equal(state.solved.length, 0);
+  await user.click(
+    within(
+      screen.getByRole("dialog", { name: "현재 사건의 해결 목표" }),
+    ).getByRole("button", { name: "닫기" }),
+  );
+  assert.equal(
+    screen.queryByRole("region", { name: "이번 사건의 해결 목표" }),
+    null,
+  );
   const search = screen.getByRole("searchbox", { name: "기록 검색" });
   for (const id of ["1-2", "1-5"]) {
     const record = recordById(id)!;
@@ -116,9 +141,8 @@ test("UI: a central case leads to record-driven questions with a reason, purpose
       ),
     );
   }
+  guide = await openGoals();
   assert.equal(guide.querySelectorAll(".goal-list li").length, 3);
-  const board = document.querySelector(".community-board");
-  await user.click(screen.getByRole("button", { name: "해결 목표" }));
   const goals = screen.getByRole("dialog", { name: "현재 사건의 해결 목표" });
   await user.click(
     within(goals).getByRole("button", {
