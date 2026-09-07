@@ -20,6 +20,14 @@ import { recordStats } from "../lib/community";
 import InvestigationGuide from "./InvestigationGuide";
 import { investigationGuides, questionPreparation } from "../lib/investigation";
 import { caseThreads, inquiryDiscovered } from "../lib/narrative";
+import InvestigationInbox from "./InvestigationInbox";
+import {
+  deliveries,
+  deliveryRecords,
+  isPublicRecord,
+  worldDate,
+  worldStage,
+} from "../lib/world";
 type Resolution = { title: string; text: string; next: string };
 type View = {
   progress: Progress;
@@ -27,9 +35,18 @@ type View = {
   ending: { title: string; label: string; text: string; after: string } | null;
   feedback?: Feedback;
 };
-type Tab = "board" | "evidence" | "deductions" | "notes" | "cases";
+type DraftEdit = {
+  episode: number;
+  question: string;
+  draft: Draft;
+  revision: number;
+  failed: boolean;
+};
+type DraftEdits = Record<string, DraftEdit>;
+type Tab = "board" | "inbox" | "evidence" | "deductions" | "notes" | "cases";
 const tabs: { id: Tab; label: string; glyph: string }[] = [
   { id: "board", label: "게시판 기록", glyph: "▤" },
+  { id: "inbox", label: "받은 자료함", glyph: "✉" },
   { id: "evidence", label: "증거 보관함", glyph: "⌑" },
   { id: "deductions", label: "추리 노트", glyph: "⌘" },
   { id: "notes", label: "나의 메모", glyph: "✎" },
@@ -42,6 +59,8 @@ export default function Game() {
   const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(0);
+  const [blocking, setBlocking] = useState(0);
+  const [draftEdits, setDraftEdits] = useState<DraftEdits>({});
   const [tab, setTab] = useState<Tab>("board");
   const [query, setQuery] = useState("");
   const [tool, setTool] = useState<"evidence" | "deductions" | null>(null);
@@ -60,14 +79,26 @@ export default function Game() {
   const [noteDirty, setNoteDirty] = useState(false);
   const [fontLarge, setFontLarge] = useState(false);
   const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const savedView = useRef<View | null>(null);
+  const draftEditsRef = useRef<DraftEdits>({});
+  const draftRevision = useRef(0);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const notePending = useRef<{ episode: number; text: string } | null>(null);
   const mainRef = useRef<HTMLElement>(null);
+  const updateDraftEdits = useCallback(
+    (update: (edits: DraftEdits) => DraftEdits) => {
+      const next = update(draftEditsRef.current);
+      draftEditsRef.current = next;
+      setDraftEdits(next);
+    },
+    [],
+  );
   const load = useCallback(async () => {
     try {
       const r = await fetch("/api/game", { cache: "no-store" });
       const data = (await r.json()) as View & { error?: string };
       if (!r.ok) throw new Error(data.error);
+      savedView.current = data;
       setView(data);
       setNotes(data.progress.notes);
     } catch (e) {
@@ -81,36 +112,106 @@ export default function Game() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
-  const send = useCallback((action: Action): Promise<View | null> => {
-    setPending((n) => n + 1);
-    setError("");
-    const job = queue.current
-      .catch(() => null)
-      .then(async () => {
-        try {
-          const r = await fetch("/api/game", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(action),
-          });
-          const data = (await r.json()) as View & { error?: string };
-          if (!r.ok) throw new Error(data.error);
-          setView(data);
-          return data;
-        } catch (e) {
-          setError(
-            e instanceof Error
-              ? e.message
-              : "저장하지 못했습니다. 다시 시도해 주세요.",
-          );
-          return null;
-        } finally {
-          setPending((n) => n - 1);
-        }
-      });
-    queue.current = job;
-    return job;
-  }, []);
+  const send = useCallback(
+    (action: Action, edit?: DraftEdit): Promise<View | null> => {
+      setPending((n) => n + 1);
+      const blocksEditing = ["solve", "visit", "reset", "pin"].includes(
+        action.type,
+      );
+      if (blocksEditing) setBlocking((n) => n + 1);
+      setError("");
+      const key = edit ? `${edit.episode}/${edit.question}` : "";
+      const isLatestEdit = () =>
+        !!edit && draftEditsRef.current[key]?.revision === edit.revision;
+      const job = queue.current
+        .catch(() => null)
+        .then(async () => {
+          try {
+            // A newer complete draft replaces a write that has not started yet.
+            if (edit && !isLatestEdit()) return null;
+            if (
+              action.type === "solve" &&
+              Object.values(draftEditsRef.current).some(
+                (d) =>
+                  d.episode ===
+                  (action.episode ?? savedView.current?.progress.active),
+              )
+            )
+              throw new Error(
+                "아직 저장되지 않은 추리가 있습니다. 다시 저장한 뒤 검증해 주세요.",
+              );
+            const requestAction = edit
+              ? {
+                  ...action,
+                  draft: {
+                    ...edit.draft,
+                    evidence: edit.draft.evidence.filter((id) =>
+                      savedView.current?.progress.pinned.includes(id),
+                    ),
+                  },
+                }
+              : action;
+            const r = await fetch("/api/game", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(requestAction),
+            });
+            const data = (await r.json()) as View & { error?: string };
+            if (!r.ok) throw new Error(data.error);
+            savedView.current = data;
+            setView(data);
+            if (action.type === "reset") updateDraftEdits(() => ({}));
+            else if (isLatestEdit())
+              updateDraftEdits((edits) => {
+                const next = { ...edits };
+                delete next[key];
+                return next;
+              });
+            return data;
+          } catch (e) {
+            // A superseded request must not mark the newer selection as failed.
+            if (edit && !isLatestEdit()) return null;
+            if (edit)
+              updateDraftEdits((edits) => ({
+                ...edits,
+                [key]: { ...edits[key], failed: true },
+              }));
+            setError(
+              e instanceof Error
+                ? e.message
+                : "저장하지 못했습니다. 다시 시도해 주세요.",
+            );
+            return null;
+          } finally {
+            setPending((n) => n - 1);
+            if (blocksEditing) setBlocking((n) => n - 1);
+          }
+        });
+      queue.current = job;
+      return job;
+    },
+    [updateDraftEdits],
+  );
+  const persistDraft = (episode: number, question: string, draft: Draft) => {
+    const edit: DraftEdit = {
+      episode,
+      question,
+      draft,
+      revision: ++draftRevision.current,
+      failed: false,
+    };
+    updateDraftEdits((edits) => ({
+      ...edits,
+      [`${episode}/${question}`]: edit,
+    }));
+    void send({ type: "draft", episode, question, draft }, edit);
+  };
+  const unsavedDrafts = Object.values(draftEdits);
+  const failedDrafts = unsavedDrafts.filter((d) => d.failed);
+  const retryDrafts = () => {
+    for (const edit of Object.values(draftEditsRef.current))
+      if (edit.failed) persistDraft(edit.episode, edit.question, edit.draft);
+  };
   const flushNote = useCallback(() => {
     if (noteTimer.current) clearTimeout(noteTimer.current);
     const note = notePending.current;
@@ -124,14 +225,14 @@ export default function Game() {
   }, [send]);
   useEffect(() => {
     const guard = (e: BeforeUnloadEvent) => {
-      if (pending || noteDirty) {
+      if (pending || noteDirty || unsavedDrafts.length) {
         e.preventDefault();
         e.returnValue = "";
       }
     };
     window.addEventListener("beforeunload", guard);
     return () => window.removeEventListener("beforeunload", guard);
-  }, [pending, noteDirty]);
+  }, [pending, noteDirty, unsavedDrafts.length]);
   const goTab = (next: Tab) => {
     flushNote();
     setQuery("");
@@ -150,11 +251,11 @@ export default function Game() {
     setFocusedQuestion(id);
     setTool("deductions");
   };
-  const visit = async (id: number) => {
+  const visit = async (id: number, destination: Tab = "board") => {
     flushNote();
     const data = await send({ type: "visit", episode: id });
     if (data) {
-      setTab("board");
+      setTab(destination);
       setTool(null);
       setQuery("");
       setFeedback(null);
@@ -195,8 +296,27 @@ export default function Game() {
         )}
       </div>
     );
-  const p = view.progress,
-    e = episodes[p.active - 1],
+  // Server responses remain authoritative; outstanding local edits are overlaid
+  // so an older response cannot undo a newer checkbox or answer change.
+  const p = {
+    ...view.progress,
+    drafts: unsavedDrafts.reduce(
+      (drafts, edit) => ({
+        ...drafts,
+        [edit.episode]: {
+          ...drafts[edit.episode],
+          [edit.question]: {
+            ...edit.draft,
+            evidence: edit.draft.evidence.filter((id) =>
+              view.progress.pinned.includes(id),
+            ),
+          },
+        },
+      }),
+      view.progress.drafts,
+    ),
+  };
+  const e = episodes[p.active - 1],
     maxEpisode = Math.min(8, p.solved.length + 1),
     solved = p.solved.includes(e.id);
   const evidence = p.pinned.map(recordById).filter((r): r is RecordFile => !!r);
@@ -221,14 +341,30 @@ export default function Game() {
         .includes(search),
   );
   const level = p.hints[e.id] ?? 0;
+  const latestDelivery = deliveries[worldStage(p) - 1];
+  const unreadAttachments = deliveries
+    .slice(0, worldStage(p))
+    .flatMap((d) => deliveryRecords(d.episode))
+    .filter((r) => !p.read.includes(r.id)).length;
   const makeDraft = (q: Question): Draft =>
     p.drafts[e.id]?.[q.id] ?? {
       answer: q.kind === "order" ? [...q.options!] : "",
       evidence: [],
     };
-  const saveDraft = (q: Question, draft: Draft) => {
+  const saveDraft = (q: Question, update: (draft: Draft) => Draft) => {
     setFeedback(null);
-    void send({ type: "draft", episode: e.id, question: q.id, draft });
+    const latest =
+      draftEditsRef.current[`${e.id}/${q.id}`]?.draft ??
+      savedView.current?.progress.drafts[e.id]?.[q.id] ??
+      makeDraft(q);
+    persistDraft(
+      e.id,
+      q.id,
+      update({
+        ...latest,
+        evidence: latest.evidence.filter((id) => p.pinned.includes(id)),
+      }),
+    );
   };
   const solve = async () => {
     const data = await send({ type: "solve", episode: e.id });
@@ -357,11 +493,11 @@ export default function Game() {
             </div>
             <div className="save-status" role="status">
               <span className={error ? "status-dot error-dot" : "status-dot"} />
-              {error
+              {error || failedDrafts.length
                 ? "저장 확인 필요"
                 : noteDirty
                   ? "메모 저장 대기"
-                  : pending
+                  : pending || unsavedDrafts.length
                     ? "기록 저장 중…"
                     : "자동 저장됨"}
             </div>
@@ -381,47 +517,84 @@ export default function Game() {
             <div className="case-masthead">
               <div>
                 <div className="eyebrow coral">
-                  CASE {pad(e.id)} <span className="eyebrow-divider">/</span>{" "}
-                  {e.mechanic}
+                  {tab === "board" || tab === "inbox"
+                    ? `EUNHA · 2026.${worldDate(p)}`
+                    : `CASE ${pad(e.id)} / ${e.mechanic}`}
                 </div>
                 <h1>
                   {tab === "cases"
                     ? "지워진 자리의 이야기"
                     : tab === "notes"
                       ? "나의 메모"
-                      : tab === "evidence"
-                        ? "흩어진 조각들"
-                        : tab === "deductions"
-                          ? "기록을 연결할 시간"
-                          : e.title}
+                      : tab === "board"
+                        ? "주민마당"
+                        : tab === "inbox"
+                          ? "받은 자료함"
+                          : tab === "evidence"
+                            ? "흩어진 조각들"
+                            : tab === "deductions"
+                              ? "기록을 연결할 시간"
+                              : e.title}
                 </h1>
                 <p>
                   {tab === "cases"
                     ? "여덟 개의 사건을 따라, 하나의 진실에 도착하세요."
                     : tab === "notes"
                       ? "기록 사이에서 발견한 연결을 적어 두세요."
-                      : tab === "evidence"
-                        ? "수집한 증거는 다음 사건에서도 다시 살펴볼 수 있습니다."
-                        : tab === "deductions"
-                          ? "가설을 세우고, 그 가설을 뒷받침하는 기록을 선택하세요."
-                          : e.subtitle}
+                      : tab === "board"
+                        ? "이웃의 일상과 오래된 기록이 쌓이는 곳."
+                        : tab === "inbox"
+                          ? "조사하며 받은 회신과 원본 자료를 보관합니다."
+                          : tab === "evidence"
+                            ? "수집한 증거는 다음 사건에서도 다시 살펴볼 수 있습니다."
+                            : tab === "deductions"
+                              ? "가설을 세우고, 그 가설을 뒷받침하는 기록을 선택하세요."
+                              : e.subtitle}
                 </p>
               </div>
               <div className="case-stamp">
                 <span>은하아파트</span>
-                <strong>{pad(e.id)}</strong>
-                <small>{solved ? "해결된 사건" : "조사 진행 중"}</small>
+                <strong>
+                  {tab === "board" || tab === "inbox" ? "▤" : pad(e.id)}
+                </strong>
+                <small>
+                  {tab === "board" || tab === "inbox"
+                    ? "주민 기록"
+                    : solved
+                      ? "해결된 사건"
+                      : "조사 진행 중"}
+                </small>
               </div>
             </div>
-            {tab === "board" && (
+            <div hidden={tab !== "board"}>
+              {unreadAttachments > 0 && (
+                <div className="incoming-mail-notice">
+                  <div>
+                    <span>✉ 받은 자료 {unreadAttachments}개 미확인</span>
+                    <strong>{latestDelivery.subject}</strong>
+                  </div>
+                  <button
+                    className="text-button"
+                    onClick={() => goTab("inbox")}
+                  >
+                    받은 자료 확인 ↗
+                  </button>
+                </div>
+              )}
               <CommunityBoard
-                key={e.id}
-                episode={e}
+                key={p.started ? "playing" : "new"}
                 progress={p}
                 onOpen={openRecord}
                 onStory={() => setShowPrologue(true)}
               />
-            )}
+            </div>
+            <div hidden={tab !== "inbox"}>
+              <InvestigationInbox
+                key={p.started ? "playing" : "new"}
+                progress={p}
+                onOpen={openRecord}
+              />
+            </div>
             {tab === "notes" && (
               <section className="notes-panel">
                 <div className="note-heading">
@@ -695,6 +868,17 @@ export default function Game() {
                 힌트 {level}/3
               </button>
             </div>
+            {failedDrafts.length > 0 && (
+              <div className="error-banner">
+                <span>
+                  선택한 내용은 유지되어 있습니다. 저장하지 못한 추리를 다시
+                  저장해 주세요.
+                </span>
+                <button disabled={pending > 0} onClick={retryDrafts}>
+                  추리 다시 저장
+                </button>
+              </div>
+            )}
             {solved && (
               <div className="solved-banner">
                 <span>✓ 이 사건을 해결했습니다.</span>
@@ -761,7 +945,7 @@ export default function Game() {
                     </span>
                   </div>
                   {q.kind === "choice" && (
-                    <fieldset className="choice-list" disabled={pending > 0}>
+                    <fieldset className="choice-list" disabled={blocking > 0}>
                       <legend className="sr-only">{q.prompt}</legend>
                       {q.options!.map((option, j) => (
                         <label
@@ -774,7 +958,10 @@ export default function Game() {
                             value={option}
                             checked={draft.answer === option}
                             onChange={() =>
-                              saveDraft(q, { ...draft, answer: option })
+                              saveDraft(q, (current) => ({
+                                ...current,
+                                answer: option,
+                              }))
                             }
                           />
                           <span className="option-letter">
@@ -793,8 +980,10 @@ export default function Game() {
                       }
                       placeholder={q.placeholder!}
                       label={q.prompt}
-                      disabled={pending > 0}
-                      onCommit={(answer) => saveDraft(q, { ...draft, answer })}
+                      disabled={blocking > 0}
+                      onCommit={(answer) =>
+                        saveDraft(q, (current) => ({ ...current, answer }))
+                      }
                     />
                   )}
                   {q.kind === "order" && (
@@ -806,22 +995,26 @@ export default function Game() {
                           <div>
                             <button
                               aria-label={`${item} 위로`}
-                              disabled={j === 0 || pending > 0}
+                              disabled={j === 0 || blocking > 0}
                               onClick={() => {
-                                const a = [...arr];
-                                [a[j - 1], a[j]] = [a[j], a[j - 1]];
-                                saveDraft(q, { ...draft, answer: a });
+                                saveDraft(q, (current) => {
+                                  const a = [...(current.answer as string[])];
+                                  [a[j - 1], a[j]] = [a[j], a[j - 1]];
+                                  return { ...current, answer: a };
+                                });
                               }}
                             >
                               ↑
                             </button>
                             <button
                               aria-label={`${item} 아래로`}
-                              disabled={j === arr.length - 1 || pending > 0}
+                              disabled={j === arr.length - 1 || blocking > 0}
                               onClick={() => {
-                                const a = [...arr];
-                                [a[j + 1], a[j]] = [a[j], a[j + 1]];
-                                saveDraft(q, { ...draft, answer: a });
+                                saveDraft(q, (current) => {
+                                  const a = [...(current.answer as string[])];
+                                  [a[j + 1], a[j]] = [a[j], a[j + 1]];
+                                  return { ...current, answer: a };
+                                });
                               }}
                             >
                               ↓
@@ -861,21 +1054,27 @@ export default function Game() {
                                 type="checkbox"
                                 checked={checked}
                                 disabled={
-                                  pending > 0 ||
+                                  blocking > 0 ||
                                   (!checked &&
                                     draft.evidence.filter((id) =>
                                       p.pinned.includes(id),
                                     ).length >= q.evidenceCount)
                                 }
                                 onChange={() => {
-                                  const valid = draft.evidence.filter((id) =>
-                                    p.pinned.includes(id),
-                                  );
-                                  saveDraft(q, {
-                                    ...draft,
-                                    evidence: checked
-                                      ? valid.filter((id) => id !== r.id)
-                                      : [...valid, r.id],
+                                  saveDraft(q, (current) => {
+                                    const valid = current.evidence;
+                                    const removing = valid.includes(r.id);
+                                    if (
+                                      !removing &&
+                                      valid.length >= q.evidenceCount
+                                    )
+                                      return current;
+                                    return {
+                                      ...current,
+                                      evidence: removing
+                                        ? valid.filter((id) => id !== r.id)
+                                        : [...valid, r.id],
+                                    };
                                   });
                                 }}
                               />
@@ -945,7 +1144,11 @@ export default function Game() {
               <button
                 className="primary"
                 onClick={solve}
-                disabled={pending > 0 || !discoveredQuestions.length}
+                disabled={
+                  blocking > 0 ||
+                  failedDrafts.some((d) => d.episode === e.id) ||
+                  !discoveredQuestions.length
+                }
               >
                 내 추리 검증하기 <span>→</span>
               </button>
@@ -960,17 +1163,27 @@ export default function Game() {
             onClose={() => setSelected(null)}
           >
             <div className="document-kicker">
-              RECORD {selected.id} <span>{selected.board}</span>
+              {isPublicRecord(selected) ? "공개 게시글" : "받은 첨부"} ·{" "}
+              {selected.id} <span>{selected.board}</span>
               {selected.deleted && (
                 <span className="restored">삭제 전 원문 복원</span>
               )}
             </div>
             <h2 className="document-title">{selected.title}</h2>
             <div className="document-meta">
-              <ResidentAvatar name={selected.author} />
+              {isPublicRecord(selected) && (
+                <ResidentAvatar name={selected.author} />
+              )}
               <span>{selected.author}</span>
               <time>2026.{selected.date}</time>
-              <span>조회 {recordStats(selected).views}</span>
+              {isPublicRecord(selected) ? (
+                <span>조회 {recordStats(selected).views}</span>
+              ) : (
+                <span>
+                  받은 시각 2026.
+                  {deliveries[Number(selected.id.split("-")[0]) - 1].date}
+                </span>
+              )}
               {selected.status && (
                 <span className="post-status">{selected.status}</span>
               )}
@@ -1025,7 +1238,11 @@ export default function Game() {
             )}
             {selected.comments && (
               <section className="comments">
-                <h3>댓글 {selected.comments.length}</h3>
+                <h3>
+                  {isPublicRecord(selected)
+                    ? `댓글 ${selected.comments.length}`
+                    : "보관된 부가 기록"}
+                </h3>
                 {selected.comments.map((c, i) => (
                   <div className="resident-comment" key={i}>
                     <ResidentAvatar name={c.author} />
@@ -1068,19 +1285,21 @@ export default function Game() {
                   ))}
               </section>
             )}
-            <div className="post-reactions">
-              <button
-                className="secondary"
-                aria-pressed={(p.liked ?? []).includes(selected.id)}
-                disabled={pending > 0}
-                onClick={() => send({ type: "like", record: selected.id })}
-              >
-                ♡ 공감{" "}
-                {recordStats(selected).likes +
-                  ((p.liked ?? []).includes(selected.id) ? 1 : 0)}
-              </button>
-              <span>댓글과 조회수는 보관 당시의 모습입니다.</span>
-            </div>
+            {isPublicRecord(selected) && (
+              <div className="post-reactions">
+                <button
+                  className="secondary"
+                  aria-pressed={(p.liked ?? []).includes(selected.id)}
+                  disabled={pending > 0}
+                  onClick={() => send({ type: "like", record: selected.id })}
+                >
+                  ♡ 공감{" "}
+                  {recordStats(selected).likes +
+                    ((p.liked ?? []).includes(selected.id) ? 1 : 0)}
+                </button>
+                <span>댓글과 조회수는 보관 당시의 모습입니다.</span>
+              </div>
+            )}
             <footer className="document-footer">
               <span>
                 {p.pinned.includes(selected.id)
@@ -1138,9 +1357,10 @@ export default function Game() {
             <h2 className="modal-title">기록자의 안내서</h2>
             <div className="help-copy">
               <p>
-                <strong>게시판 기록</strong>에서 글을 열어 읽으세요. 삭제 표시가
-                있는 글도 보관본에서 복원되어 있습니다. 검색은 본문과 첨부
-                표까지 찾습니다.
+                <strong>게시판 기록</strong>에는 공개된 주민 글이 계속 쌓입니다.
+                <strong>받은 자료함</strong>에는 회신과 비공개 원본이
+                도착합니다. 삭제된 글의 복원본도 받은 자료에서 확인할 수
+                있습니다.
               </p>
               <p>
                 <strong>증거 수집</strong>을 누르면 증거 보관함에 남습니다. 다음
@@ -1219,12 +1439,12 @@ export default function Game() {
                 if (showResolution === 8) {
                   setShowResolution(null);
                   setShowEnding(true);
-                } else void visit(showResolution + 1);
+                } else void visit(showResolution + 1, "inbox");
               }}
             >
               {showResolution === 8
                 ? "기록의 공개 범위 결정하기"
-                : `사건 ${pad(showResolution + 1)} 열기`}{" "}
+                : "도착한 회신 확인하기"}{" "}
               →
             </button>
           </Dialog>

@@ -1,5 +1,6 @@
 import { episodes, recordById } from "./cases";
 import { solutions, resolutions, endings } from "./solutions";
+import { canReadRecord } from "./world";
 
 export type Draft = { answer: string | string[]; evidence: string[] };
 export type Progress = {
@@ -98,7 +99,7 @@ export function applyAction(
     action.type === "like"
   ) {
     const r = recordById(action.record ?? "");
-    if (!r || Number(r.id.split("-")[0]) > unlocked(p))
+    if (!r || !canReadRecord(r, p))
       throw new Error("열람할 수 없는 기록입니다.");
     if (!p.read.includes(r.id)) p.read.push(r.id);
     if (action.type === "like")

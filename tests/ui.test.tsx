@@ -2,10 +2,11 @@ import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import React from "react";
-import { episodes, recordById } from "../lib/cases";
+import { episodes, recordById, type RecordFile } from "../lib/cases";
 import { freshProgress, applyAction, gameView, type Action } from "../lib/game";
 import { walkthrough } from "./walkthrough";
 import { caseThreads, mainCase } from "../lib/narrative";
+import { deliveries, isPublicRecord } from "../lib/world";
 import Game from "../app/Game";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
@@ -29,10 +30,192 @@ dom.window.HTMLDialogElement.prototype.showModal = function () {
 dom.window.HTMLDialogElement.prototype.close = function () {
   this.removeAttribute("open");
 };
-const { render, screen, within, waitFor, cleanup, fireEvent } =
+const { render, screen, within, waitFor, cleanup, fireEvent, act } =
   await import("@testing-library/react");
 const { default: userEvent } = await import("@testing-library/user-event");
 afterEach(() => cleanup());
+
+async function openSourceRecord(
+  user: ReturnType<typeof userEvent.setup>,
+  record: RecordFile,
+) {
+  if (isPublicRecord(record)) {
+    await user.click(screen.getByRole("button", { name: "게시판 기록" }));
+    fireEvent.change(screen.getByRole("searchbox", { name: "기록 검색" }), {
+      target: { value: record.title },
+    });
+    const row = [
+      ...document.querySelectorAll<HTMLButtonElement>(".record-row"),
+    ].find((el) => el.textContent?.includes(record.title));
+    assert.ok(row, record.title);
+    await user.click(row);
+  } else {
+    await user.click(screen.getByRole("button", { name: "받은 자료함" }));
+    fireEvent.change(
+      screen.getByRole("searchbox", { name: "받은 자료 검색" }),
+      { target: { value: record.title } },
+    );
+    await user.click(
+      screen.getByRole("button", { name: `${record.title} 열기` }),
+    );
+  }
+}
+
+function delayedSaves() {
+  let state = applyAction(freshProgress(), { type: "start" }).progress;
+  for (const r of episodes[0].records)
+    state = applyAction(state, { type: "pin", record: r.id }).progress;
+  for (const [question, [answer, evidence]] of Object.entries(walkthrough[0]))
+    state = applyAction(state, {
+      type: "draft",
+      question,
+      draft: { answer, evidence: question === "alias" ? [] : evidence },
+    }).progress;
+  const requests: { action: Action; respond: (fail?: boolean) => void }[] = [];
+  globalThis.fetch = (async (
+    _url: unknown,
+    options?: { method?: string; body?: string },
+  ) => {
+    if (options?.method !== "POST") return Response.json(gameView(state));
+    const action = JSON.parse(options.body!) as Action;
+    return new Promise<Response>((resolve) =>
+      requests.push({
+        action,
+        respond: (fail = false) => {
+          if (fail)
+            return resolve(
+              Response.json(
+                { error: "느린 연결의 저장 실패" },
+                { status: 503 },
+              ),
+            );
+          const result = applyAction(state, action);
+          state = result.progress;
+          resolve(
+            Response.json({ ...gameView(state), feedback: result.feedback }),
+          );
+        },
+      }),
+    );
+  }) as typeof fetch;
+  return {
+    requests,
+    state: () => state,
+    release: async (index: number, fail = false) => {
+      await waitFor(() => assert.ok(requests[index]));
+      await act(async () => requests[index].respond(fail));
+    },
+  };
+}
+
+test("UI: slow saves never block evidence toggles, coalesce changes and verify only the latest saved drafts", async () => {
+  const server = delayedSaves();
+  const user = userEvent.setup({ document: dom.window.document });
+  render(<Game />);
+  await user.click(await screen.findByRole("button", { name: "추리 노트" }));
+  const card = document.getElementById("question-1-alias")!;
+  const proof = (id: string) =>
+    within(card).getByRole("checkbox", {
+      name: new RegExp(id),
+    }) as HTMLInputElement;
+  await user.click(proof("1-2"));
+  assert.equal(proof("1-2").checked, true);
+  assert.equal(proof("1-3").disabled, false);
+  await user.click(proof("1-3"));
+  assert.equal(proof("1-3").checked, true);
+  assert.equal(proof("1-1").disabled, true, "evidence limit still applies");
+  await user.click(proof("1-2"));
+  assert.equal(proof("1-2").checked, false);
+  await user.click(proof("1-2"));
+  await user.click(within(card).getByRole("radio", { name: /우편함/ }));
+  await user.click(within(card).getByRole("radio", { name: /계단참/ }));
+  const status = document.getElementById("question-1-status")!;
+  const other = within(status).getByRole("checkbox", { name: /1-1/ });
+  await user.click(other);
+  await user.click(other);
+  assert.equal(
+    server.requests.length,
+    1,
+    "one in-flight request; rapid edits stay responsive",
+  );
+  let notes = screen.getByRole("dialog", { name: "추리 노트" });
+  await user.click(within(notes).getByRole("button", { name: "닫기" }));
+  await user.click(screen.getByRole("button", { name: "추리 노트" }));
+  notes = screen.getByRole("dialog", { name: "추리 노트" });
+  const aliasProofs = () =>
+    within(document.getElementById("question-1-alias")!).getAllByRole(
+      "checkbox",
+      { checked: true },
+    ).length;
+  assert.equal(aliasProofs(), 2, "closing the modal retains unsaved choices");
+  await user.click(
+    within(notes).getByRole("button", { name: /내 추리 검증하기/ }),
+  );
+  await server.release(0);
+  assert.equal(
+    aliasProofs(),
+    2,
+    "an older response cannot overwrite newer choices",
+  );
+  await server.release(1);
+  await server.release(2);
+  await waitFor(() => assert.equal(server.requests[3]?.action.type, "solve"));
+  assert.equal(
+    server.requests.filter((r) => r.action.type === "draft").length,
+    3,
+  );
+  assert.deepEqual(
+    new Set(server.state().drafts[1].alias.evidence),
+    new Set(["1-2", "1-3"]),
+  );
+  assert.equal(server.state().drafts[1].alias.answer, "계단참");
+  await server.release(3);
+  assert.deepEqual(server.state().solved, [1]);
+});
+
+test("UI: failed draft saves keep choices, block stale verification and allow an explicit retry", async () => {
+  const server = delayedSaves();
+  const user = userEvent.setup({ document: dom.window.document });
+  render(<Game />);
+  await user.click(await screen.findByRole("button", { name: "추리 노트" }));
+  const card = document.getElementById("question-1-alias")!;
+  await user.click(within(card).getByRole("checkbox", { name: /1-2/ }));
+  await user.click(within(card).getByRole("checkbox", { name: /1-3/ }));
+  const notes = screen.getByRole("dialog", { name: "추리 노트" });
+  await user.click(
+    within(notes).getByRole("button", { name: /내 추리 검증하기/ }),
+  );
+  await server.release(0, true);
+  assert.equal(
+    within(notes).queryByRole("button", { name: "추리 다시 저장" }),
+    null,
+    "superseded failures do not discard a newer queued edit",
+  );
+  await server.release(1, true);
+  const retry = await within(notes).findByRole("button", {
+    name: "추리 다시 저장",
+  });
+  assert.equal(
+    within(card).getAllByRole("checkbox", { checked: true }).length,
+    2,
+  );
+  assert.equal(
+    server.requests.some((r) => r.action.type === "solve"),
+    false,
+  );
+  assert.equal(screen.queryByText("자동 저장됨"), null);
+  const unload = new dom.window.Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(unload);
+  assert.equal(unload.defaultPrevented, true);
+  await user.click(retry);
+  await server.release(2);
+  await screen.findByText("자동 저장됨");
+  assert.equal(
+    within(notes).queryByRole("button", { name: "추리 다시 저장" }),
+    null,
+  );
+  assert.deepEqual(server.state().drafts[1].alias.evidence, ["1-2", "1-3"]);
+});
 
 test("UI: goals appear only in a modal and lead to record-driven questions and focused notes", async () => {
   let state = applyAction(freshProgress(), { type: "start" }).progress;
@@ -128,11 +311,9 @@ test("UI: goals appear only in a modal and lead to record-driven questions and f
     screen.queryByRole("region", { name: "이번 사건의 해결 목표" }),
     null,
   );
-  const search = screen.getByRole("searchbox", { name: "기록 검색" });
   for (const id of ["1-2", "1-5"]) {
     const record = recordById(id)!;
-    fireEvent.change(search, { target: { value: record.title } });
-    await user.click(document.querySelector<HTMLButtonElement>(".record-row")!);
+    await openSourceRecord(user, record);
     await waitFor(() => assert.ok(state.read.includes(id)));
     await user.click(
       within(screen.getByRole("dialog", { name: record.title })).getByRole(
@@ -189,7 +370,7 @@ test(
     await screen.findByRole("heading", { name: "은하아파트 주민마당" });
     assert.equal(document.querySelectorAll(".record-row").length, 12);
     await user.click(screen.getByRole("button", { name: "다음 글 →" }));
-    assert.equal(document.querySelectorAll(".record-row").length, 2);
+    assert.equal(document.querySelectorAll(".record-row").length, 5);
     const boardNode = document.querySelector(".community-board");
     await user.click(screen.getByRole("button", { name: /^증거 보관함/ }));
     let cabinet = screen.getByRole("dialog", { name: "증거 보관함" });
@@ -267,7 +448,7 @@ test(
     const replay = screen.getByRole("dialog", { name: "사건 01 프롤로그" });
     assert.ok(within(replay).getByText(episodes[0].objective));
     await user.click(
-      within(replay).getByRole("button", { name: "게시판에서 조사 시작 →" }),
+      within(replay).getByRole("button", { name: "조사 이어가기 →" }),
     );
     cleanup();
     render(<Game />);
@@ -294,20 +475,16 @@ test(
     const next = await screen.findByRole("dialog", {
       name: "사건 02 프롤로그",
     });
-    await click(
-      within(next).getByRole("button", { name: "게시판에서 조사 시작 →" }),
-    );
-    fireEvent.change(screen.getByRole("combobox", { name: "보관 범위" }), {
-      target: { value: "all" },
-    });
-    assert.ok(screen.getByText("총 28개의 글"));
+    await click(within(next).getByRole("button", { name: "조사 이어가기 →" }));
+    assert.equal(screen.queryByRole("combobox", { name: "보관 범위" }), null);
+    assert.ok(screen.getByText("총 31개의 글"));
     fireEvent.change(screen.getByRole("searchbox", { name: "기록 검색" }), {
-      target: { value: recordById("3-1")!.title },
+      target: { value: recordById("3-2")!.title },
     });
     assert.equal(
       document.querySelectorAll(".record-row").length,
       0,
-      "future episode posts stay out of the archive view",
+      "private originals never appear as public posts",
     );
     fireEvent.change(screen.getByRole("searchbox", { name: "기록 검색" }), {
       target: { value: post.title },
@@ -316,6 +493,17 @@ test(
       document.querySelectorAll(".record-row").length,
       1,
       "previous everyday posts remain searchable",
+    );
+    await user.click(screen.getByRole("button", { name: "받은 자료함" }));
+    assert.ok(screen.getByRole("article", { name: deliveries[1].subject }));
+    assert.ok(
+      screen.getByRole("button", { name: /서윤 씨가 남긴 기록을 읽어 주세요/ }),
+    );
+    await user.click(screen.getByRole("button", { name: "게시판 기록" }));
+    assert.equal(
+      (screen.getByRole("searchbox", { name: "기록 검색" }) as HTMLInputElement)
+        .value,
+      post.title,
     );
   },
 );
@@ -360,6 +548,7 @@ test(
       await idle();
     };
     await idle();
+    const persistentBoard = document.querySelector(".community-board");
     for (const ep of episodes) {
       if (ep.id > 1) {
         const prologue = screen.getByRole("dialog", {
@@ -369,23 +558,35 @@ test(
         assert.ok(within(prologue).getByRole("img"));
         await click(
           within(prologue).getByRole("button", {
-            name: "게시판에서 조사 시작 →",
+            name: "조사 이어가기 →",
           }),
         );
       }
-      assert.ok(screen.getByRole("heading", { name: ep.title, level: 1 }));
+      if (ep.id > 1)
+        assert.ok(
+          screen.getByRole("article", { name: deliveries[ep.id - 1].subject }),
+        );
+      await user.click(screen.getByRole("button", { name: "게시판 기록" }));
+      assert.ok(screen.getByRole("heading", { name: "주민마당", level: 1 }));
+      assert.equal(
+        document.querySelector(".community-board"),
+        persistentBoard,
+        "the same board survives every stage",
+      );
       const search = screen.getByRole("searchbox", { name: "기록 검색" });
       await user.type(search, "존재하지않는단어xyz");
       assert.ok(screen.getByText("일치하는 기록이 없습니다."));
       await user.clear(search);
       for (const r of ep.records) {
-        fireEvent.change(search, { target: { value: r.title } });
-        const row = [
-          ...document.querySelectorAll<HTMLButtonElement>(".record-row"),
-        ].find((el) => el.textContent?.includes(r.title));
-        assert.ok(row);
-        await click(row);
+        await openSourceRecord(user, r);
+        await idle();
         const dialog = screen.getByRole("dialog", { name: r.title });
+        if (!isPublicRecord(r))
+          assert.equal(
+            within(dialog).queryByRole("button", { name: /♡ 공감/ }),
+            null,
+            "private files are documents, not social posts",
+          );
         for (const paragraph of r.paragraphs)
           assert.ok(within(dialog).getByText(paragraph));
         if (r.attachment)
@@ -470,7 +671,7 @@ test(
           name:
             ep.id === 8
               ? "기록의 공개 범위 결정하기 →"
-              : `사건 ${String(ep.id + 1).padStart(2, "0")} 열기 →`,
+              : "도착한 회신 확인하기 →",
         }),
       );
     }
@@ -480,7 +681,7 @@ test(
     assert.ok(screen.getByRole("heading", { name: "조용히 남은 원본" }));
     cleanup();
     render(<Game />);
-    await screen.findByRole("heading", { name: episodes[7].title, level: 1 });
+    await screen.findByRole("heading", { name: "주민마당", level: 1 });
     assert.equal(state.ending, "audit");
     await click(screen.getByRole("button", { name: "사건 목록" }));
     await click(screen.getByRole("button", { name: /결말 다시 읽기/ }));

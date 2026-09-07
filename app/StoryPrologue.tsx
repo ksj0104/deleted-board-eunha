@@ -59,12 +59,12 @@ export default function StoryPrologue({
           </section>
           {first && (
             <div className="story-how">
-              <span>01 글과 댓글 살펴보기</span>
+              <span>01 주민마당과 받은 자료함 살펴보기</span>
               <span>02 중요한 기록 수집하기</span>
               <span>03 기록에서 생긴 의문을 추리 노트에 정리하기</span>
               <p>
-                증거 보관함과 추리 노트는 게시판 위의 창으로 열립니다. 8화 완결
-                · 시간 제한 없음 · 진행 자동 저장
+                증거 보관함과 추리 노트는 조사 화면 위의 창으로 열립니다. 8화
+                완결 · 시간 제한 없음 · 진행 자동 저장
               </p>
             </div>
           )}
@@ -73,7 +73,7 @@ export default function StoryPrologue({
             disabled={pending}
             onClick={onContinue}
           >
-            {first ? "첫 번째 기록 열기 →" : "게시판에서 조사 시작 →"}
+            {first ? "첫 번째 기록 열기 →" : "조사 이어가기 →"}
           </button>
         </div>
       </div>

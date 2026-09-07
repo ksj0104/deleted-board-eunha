@@ -1,10 +1,11 @@
 "use client";
 import React, { useState } from "react";
-import { allRecords, type Episode, type RecordFile } from "../lib/cases";
+import type { RecordFile } from "../lib/cases";
 import { communityImages, recordStats } from "../lib/community";
 import { episodeStories } from "../lib/stories";
 import type { Progress } from "../lib/game";
 import { Empty, Search } from "./components";
+import { communityRecords, worldDate, worldStage } from "../lib/world";
 
 export function ResidentAvatar({ name }: { name: string }) {
   const colors = ["#52736d", "#927056", "#687a91", "#86738c", "#7d8558"];
@@ -21,27 +22,20 @@ export function ResidentAvatar({ name }: { name: string }) {
 }
 
 export default function CommunityBoard({
-  episode,
   progress,
   onOpen,
   onStory,
 }: {
-  episode: Episode;
   progress: Progress;
   onOpen: (r: RecordFile) => void;
   onStory: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [board, setBoard] = useState("전체");
-  const [scope, setScope] = useState("today");
   const [sort, setSort] = useState("newest");
   const [photos, setPhotos] = useState(false);
   const [page, setPage] = useState(1);
-  const source = allRecords.filter((r) =>
-    scope === "today"
-      ? Number(r.id.split("-")[0]) === episode.id
-      : Number(r.id.split("-")[0]) <= episode.id,
-  );
+  const source = communityRecords(progress);
   const boards = ["전체", ...new Set(source.map((r) => r.board))];
   const search = query.trim().toLocaleLowerCase();
   const filtered = source
@@ -71,7 +65,8 @@ export default function CommunityBoard({
           : b.date.localeCompare(a.date),
     );
   const pages = Math.max(1, Math.ceil(filtered.length / 12));
-  const shown = filtered.slice((page - 1) * 12, page * 12);
+  const currentPage = Math.min(page, pages);
+  const shown = filtered.slice((currentPage - 1) * 12, currentPage * 12);
   const reset = () => {
     setQuery("");
     setBoard("전체");
@@ -100,11 +95,11 @@ export default function CommunityBoard({
           <h2>은하아파트 주민마당</h2>
           <p>별일 없는 하루도, 여기서는 이야기가 됩니다.</p>
         </div>
-        <span className="archive-pill">2026.{episode.date} 보관본</span>
+        <span className="archive-pill">2026.{worldDate(progress)}</span>
       </div>
       <div className="community-notice">
         <strong>마을 알림</strong>
-        <span>{episodeStories[episode.id - 1].communityNote}</span>
+        <span>{episodeStories[worldStage(progress) - 1].communityNote}</span>
         <button className="text-button" onClick={onStory}>
           도입 이야기 다시 보기 ↗
         </button>
@@ -141,18 +136,6 @@ export default function CommunityBoard({
               }}
             />
             <div>
-              <select
-                aria-label="보관 범위"
-                value={scope}
-                onChange={(ev) => {
-                  setScope(ev.target.value);
-                  setBoard("전체");
-                  setPage(1);
-                }}
-              >
-                <option value="today">이번 보관본</option>
-                <option value="all">이전 기록 함께 보기</option>
-              </select>
               <select
                 aria-label="글 정렬"
                 value={sort}
@@ -238,18 +221,18 @@ export default function CommunityBoard({
           <nav className="board-pagination" aria-label="게시글 페이지">
             <button
               className="secondary"
-              disabled={page === 1}
-              onClick={() => setPage(page - 1)}
+              disabled={currentPage === 1}
+              onClick={() => setPage(currentPage - 1)}
             >
               ← 이전 글
             </button>
             <span aria-live="polite">
-              {page} / {pages} 페이지
+              {currentPage} / {pages} 페이지
             </span>
             <button
               className="secondary"
-              disabled={page === pages}
-              onClick={() => setPage(page + 1)}
+              disabled={currentPage === pages}
+              onClick={() => setPage(currentPage + 1)}
             >
               다음 글 →
             </button>

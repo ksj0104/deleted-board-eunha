@@ -31,6 +31,12 @@ assert.match(
 );
 await request({ type: "visit", episode: 8 }, 400);
 await request({ type: "pin", record: "8-1" }, 400);
+assert.ok(
+  (await request({ type: "read", record: "3-1" })).progress.read.includes(
+    "3-1",
+  ),
+);
+await request({ type: "read", record: "3-2" }, 400);
 await request({ type: "start" });
 await request({ type: "like", record: "8-7" }, 400);
 await request({ type: "like", record: "1-7" });

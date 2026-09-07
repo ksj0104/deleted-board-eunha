@@ -14,6 +14,73 @@ import { episodeStories } from "../lib/stories";
 import { existsSync } from "node:fs";
 import { investigationGuides, questionPreparation } from "../lib/investigation";
 import { caseThreads, inquiryDiscovered } from "../lib/narrative";
+import {
+  canReadRecord,
+  communityRecords,
+  deliveries,
+  deliveryRecords,
+  isPublicRecord,
+  worldDate,
+} from "../lib/world";
+
+test("the community is a persistent dated world; private sources arrive separately and never rewind on case revisits", () => {
+  const initial = freshProgress();
+  assert.ok(
+    communityRecords(initial).some((r) => r.id === "3-1"),
+    "an old public ledger is available before its deduction stage",
+  );
+  assert.equal(
+    canReadRecord(recordById("3-2")!, initial),
+    false,
+    "an old private original still needs its source's reply",
+  );
+  assert.equal(
+    canReadRecord(recordById("8-7")!, initial),
+    false,
+    "future public posts wait for their publication time",
+  );
+  assert.equal(
+    isPublicRecord(recordById("1-3")!),
+    false,
+    "the deleted post arrives as an email restoration",
+  );
+  assert.ok(
+    applyAction(initial, {
+      type: "read",
+      record: "3-1",
+    }).progress.read.includes("3-1"),
+  );
+  let previous: string[] = [];
+  const privateIds: string[] = [];
+  for (const ep of episodes) {
+    const progress = {
+      ...freshProgress(),
+      active: ep.id,
+      solved: episodes.slice(0, ep.id - 1).map((e) => e.id),
+    };
+    const board = communityRecords(progress);
+    assert.ok(
+      previous.every((id) => board.some((r) => r.id === id)),
+      "old posts never disappear",
+    );
+    assert.ok(board.every((r) => r.date <= worldDate(progress)));
+    assert.deepEqual(
+      communityRecords({ ...progress, active: 1 }),
+      board,
+      "revisiting an earlier deduction keeps the same world",
+    );
+    assert.equal(deliveries[ep.id - 1].episode, ep.id);
+    for (const record of deliveryRecords(ep.id)) {
+      assert.equal(canReadRecord(record, progress), true);
+      assert.equal(board.includes(record), false);
+      privateIds.push(record.id);
+    }
+    previous = board.map((r) => r.id);
+  }
+  assert.equal(previous.length, 80);
+  assert.equal(privateIds.length, 32);
+  assert.equal(new Set([...previous, ...privateIds]).size, allRecords.length);
+});
 
 test("inquiries emerge from relevant records, preserve existing drafts and remain reachable throughout the campaign", () => {
   const ep = episodes[0];
