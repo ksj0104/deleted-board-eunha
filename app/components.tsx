@@ -7,6 +7,8 @@ import React, {
   useState,
 } from "react";
 export const GameErrorContext = createContext("");
+let openDialogs = 0;
+let previousOverflow = "";
 export function Dialog({
   label,
   children,
@@ -22,9 +24,14 @@ export function Dialog({
   const error = useContext(GameErrorContext);
   useEffect(() => {
     const d = ref.current;
+    if (openDialogs++ === 0) {
+      previousOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+    }
     if (d && !d.open) d.showModal();
     return () => {
       if (d?.open) d.close();
+      if (--openDialogs === 0) document.body.style.overflow = previousOverflow;
     };
   }, []);
   return (
@@ -106,9 +113,11 @@ export function CodeInput({
   onCommit: (v: string) => void;
 }) {
   const [text, setText] = useState(value);
-  useEffect(() => {
+  const [previousValue, setPreviousValue] = useState(value);
+  if (previousValue !== value) {
+    setPreviousValue(value);
     setText(value);
-  }, [value]);
+  }
   return (
     <form
       className="code-entry"

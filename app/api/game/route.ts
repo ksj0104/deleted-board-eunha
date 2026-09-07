@@ -43,15 +43,17 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const s = await session();
   const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin)
-    return response(
-      { error: "요청 출처를 확인할 수 없습니다." },
-      request,
-      s,
-      403,
-    );
   try {
+    // Consume the request before responding so the next request on a reused
+    // connection is not interrupted by an unread body in the Worker runtime.
     const text = await request.text();
+    if (origin && origin !== new URL(request.url).origin)
+      return response(
+        { error: "요청 출처를 확인할 수 없습니다." },
+        request,
+        s,
+        403,
+      );
     if (text.length > 12000)
       return response({ error: "요청이 너무 큽니다." }, request, s, 413);
     let action: Action;

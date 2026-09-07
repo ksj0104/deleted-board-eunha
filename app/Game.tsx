@@ -14,6 +14,9 @@ import {
   CodeInput,
   GameErrorContext,
 } from "./components";
+import CommunityBoard, { ResidentAvatar } from "./CommunityBoard";
+import StoryPrologue from "./StoryPrologue";
+import { recordStats } from "../lib/community";
 type Resolution = { title: string; text: string; next: string };
 type View = {
   progress: Progress;
@@ -38,8 +41,10 @@ export default function Game() {
   const [pending, setPending] = useState(0);
   const [tab, setTab] = useState<Tab>("board");
   const [query, setQuery] = useState("");
-  const [board, setBoard] = useState("전체");
+  const [tool, setTool] = useState<"evidence" | "deductions" | null>(null);
+  const [showPrologue, setShowPrologue] = useState(false);
   const [selected, setSelected] = useState<RecordFile | null>(null);
+  const [recordWindow, setRecordWindow] = useState(0);
   const [help, setHelp] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [showReset, setShowReset] = useState(false);
@@ -54,7 +59,6 @@ export default function Game() {
   const notePending = useRef<{ episode: number; text: string } | null>(null);
   const mainRef = useRef<HTMLElement>(null);
   const load = useCallback(async () => {
-    setLoadError("");
     try {
       const r = await fetch("/api/game", { cache: "no-store" });
       const data = (await r.json()) as View & { error?: string };
@@ -68,6 +72,8 @@ export default function Game() {
     }
   }, []);
   useEffect(() => {
+    // load updates state after the network promise resolves or rejects.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
   const send = useCallback((action: Action): Promise<View | null> => {
@@ -124,6 +130,11 @@ export default function Game() {
   const goTab = (next: Tab) => {
     flushNote();
     setQuery("");
+    if (next === "evidence" || next === "deductions") {
+      setTool(next);
+      return;
+    }
+    setTool(null);
     setTab(next);
     mainRef.current?.focus();
   };
@@ -132,15 +143,18 @@ export default function Game() {
     const data = await send({ type: "visit", episode: id });
     if (data) {
       setTab("board");
-      setBoard("전체");
+      setTool(null);
       setQuery("");
       setFeedback(null);
       setShowResolution(null);
       setShowHint(false);
+      setSelected(null);
+      setShowPrologue(false);
       mainRef.current?.focus();
     }
   };
   const openRecord = (r: RecordFile) => {
+    setRecordWindow((n) => n + 1);
     setSelected(r);
     if (!view?.progress.read.includes(r.id))
       void send({ type: "read", record: r.id });
@@ -155,7 +169,13 @@ export default function Game() {
           {loadError || "보관된 기록을 불러오고 있습니다…"}
         </p>
         {loadError && (
-          <button className="primary" onClick={load}>
+          <button
+            className="primary"
+            onClick={() => {
+              setLoadError("");
+              void load();
+            }}
+          >
             다시 연결하기
           </button>
         )}
@@ -166,25 +186,22 @@ export default function Game() {
     maxEpisode = Math.min(8, p.solved.length + 1),
     solved = p.solved.includes(e.id);
   const evidence = p.pinned.map(recordById).filter((r): r is RecordFile => !!r);
-  const currentEvidence = evidence.filter((r) => r.id.startsWith(`${e.id}-`));
-  const boards = ["전체", ...new Set(e.records.map((r) => r.board))];
   const search = query.trim().toLocaleLowerCase();
-  const source = tab === "evidence" ? evidence : e.records;
+  const source = evidence;
   const visible = source.filter(
     (r) =>
-      (tab === "evidence" || board === "전체" || r.board === board) &&
-      (!search ||
-        [
-          r.title,
-          r.author,
-          r.id,
-          ...r.paragraphs,
-          ...(r.comments ?? []).map((c) => c.text),
-          ...(r.attachment?.rows.flat() ?? []),
-        ]
-          .join(" ")
-          .toLocaleLowerCase()
-          .includes(search)),
+      !search ||
+      [
+        r.title,
+        r.author,
+        r.id,
+        ...r.paragraphs,
+        ...(r.comments ?? []).map((c) => c.text),
+        ...(r.attachment?.rows.flat() ?? []),
+      ]
+        .join(" ")
+        .toLocaleLowerCase()
+        .includes(search),
   );
   const level = p.hints[e.id] ?? 0;
   const makeDraft = (q: Question): Draft =>
@@ -256,8 +273,13 @@ export default function Game() {
             {tabs.map((t) => (
               <button
                 key={t.id}
-                className={`nav-button ${tab === t.id ? "active" : ""}`}
-                aria-current={tab === t.id ? "page" : undefined}
+                className={`nav-button ${(tool ?? tab) === t.id ? "active" : ""}`}
+                aria-current={!tool && tab === t.id ? "page" : undefined}
+                aria-haspopup={
+                  t.id === "evidence" || t.id === "deductions"
+                    ? "dialog"
+                    : undefined
+                }
                 onClick={() => goTab(t.id)}
               >
                 <span className="nav-glyph" aria-hidden="true">
@@ -333,7 +355,12 @@ export default function Game() {
               <button onClick={() => setError("")}>닫기</button>
             </div>
           )}
-          <main id="main" ref={mainRef} tabIndex={-1} className="main">
+          <main
+            id="main"
+            ref={mainRef}
+            tabIndex={-1}
+            className={`main ${tab === "board" ? "community-main" : ""}`}
+          >
             <div className="case-masthead">
               <div>
                 <div className="eyebrow coral">
@@ -370,365 +397,13 @@ export default function Game() {
               </div>
             </div>
             {tab === "board" && (
-              <>
-                <section className="brief-card">
-                  <div className="brief-label">
-                    <span className="coral">↳</span> 도착한 의뢰{" "}
-                    <span>{e.date} / 기록 복원</span>
-                  </div>
-                  <p>{e.intro}</p>
-                  <div className="objective">
-                    <span>조사 목표</span>
-                    {e.objective}
-                  </div>
-                </section>
-                <div className="section-heading">
-                  <h2>
-                    커뮤니티 보관본 <span>{e.records.length}</span>
-                  </h2>
-                  <span className="muted">삭제된 글도 복원되어 있습니다</span>
-                </div>
-                <div className="filter-row">
-                  <div className="board-filters">
-                    {boards.map((b) => (
-                      <button
-                        key={b}
-                        className={board === b ? "selected" : ""}
-                        onClick={() => setBoard(b)}
-                        aria-pressed={board === b}
-                      >
-                        {b}
-                      </button>
-                    ))}
-                  </div>
-                  <Search query={query} onChange={setQuery} />
-                </div>
-                <div className="record-table">
-                  <div className="table-header">
-                    <span>분류 / 제목</span>
-                    <span>작성자</span>
-                    <span>기록 일시</span>
-                  </div>
-                  {visible.map((r) => (
-                    <button
-                      className={`record-row ${p.read.includes(r.id) ? "read" : ""}`}
-                      key={r.id}
-                      onClick={() => openRecord(r)}
-                    >
-                      <div className="record-title">
-                        <span
-                          className={`read-dot ${p.read.includes(r.id) ? "is-read" : ""}`}
-                        />
-                        <div>
-                          <span className="category">{r.board}</span>
-                          <strong>
-                            {r.title}{" "}
-                            {r.deleted && (
-                              <span className="restored">복원</span>
-                            )}{" "}
-                            {p.pinned.includes(r.id) && (
-                              <span
-                                className="pinned-mark"
-                                aria-label="수집한 증거"
-                              >
-                                ⌑
-                              </span>
-                            )}
-                          </strong>
-                          {r.attachment && (
-                            <small className="attachment-hint">
-                              ↳ 첨부 기록 1건
-                            </small>
-                          )}
-                        </div>
-                      </div>
-                      <span className="record-author">{r.author}</span>
-                      <time>{r.date}</time>
-                    </button>
-                  ))}
-                  {!visible.length && (
-                    <Empty
-                      text="일치하는 기록이 없습니다."
-                      detail="검색어나 게시판 분류를 바꿔 보세요."
-                      onReset={() => {
-                        setQuery("");
-                        setBoard("전체");
-                      }}
-                    />
-                  )}
-                </div>
-                <div className="board-bottom">
-                  <span>
-                    {e.records.filter((r) => p.read.includes(r.id)).length} / 6
-                    기록 열람 · {currentEvidence.length}개 증거 수집
-                  </span>
-                  <button
-                    className="text-button"
-                    onClick={() => goTab("deductions")}
-                  >
-                    추리 노트 펼치기 <span>↗</span>
-                  </button>
-                </div>
-                <div className="archive-footnote">
-                  <span>⌁</span>
-                  <p>
-                    평범한 게시글에도, 사라진 사람의 흔적이 남아 있습니다.
-                    <br />
-                    <span>기록을 열어 읽고 중요한 글은 증거로 수집하세요.</span>
-                  </p>
-                  <span className="archive-code">
-                    EUNHA / {pad(e.id)} — 0318
-                  </span>
-                </div>
-              </>
-            )}
-            {tab === "evidence" && (
-              <>
-                <div className="evidence-toolbar">
-                  <p>
-                    전 사건에서 수집한 기록 <strong>{evidence.length}</strong>개
-                  </p>
-                  <Search query={query} onChange={setQuery} />
-                </div>
-                <div className="evidence-grid">
-                  {visible.map((r) => (
-                    <button
-                      className="evidence-card"
-                      key={r.id}
-                      onClick={() => openRecord(r)}
-                    >
-                      <div>
-                        <span className="file-number">FILE {r.id}</span>
-                        <span className="coral">⌑</span>
-                      </div>
-                      <span className="category">{r.board}</span>
-                      <h3>{r.title}</h3>
-                      <p>{r.paragraphs[0]}</p>
-                      <footer>
-                        {r.author}
-                        <span>열어보기 ↗</span>
-                      </footer>
-                    </button>
-                  ))}
-                </div>
-                {!visible.length && (
-                  <Empty
-                    text={
-                      evidence.length
-                        ? "일치하는 증거가 없습니다."
-                        : "아직 수집한 증거가 없습니다."
-                    }
-                    detail="게시글을 열고 ‘증거 수집’ 버튼을 눌러 보관하세요."
-                    onReset={() => goTab("board")}
-                  />
-                )}
-              </>
-            )}
-            {tab === "deductions" && (
-              <>
-                <div className="deduction-intro">
-                  <p>
-                    <strong>답과 근거가 함께 맞아야</strong> 가설이 입증됩니다.
-                    필요한 기록을 먼저 증거 보관함에 수집하세요.
-                  </p>
-                  <button
-                    className="secondary"
-                    onClick={() => setShowHint(true)}
-                  >
-                    힌트 {level}/3
-                  </button>
-                </div>
-                {solved && (
-                  <div className="solved-banner">
-                    <span>✓ 이 사건을 해결했습니다.</span>
-                    <button onClick={() => setShowResolution(e.id)}>
-                      해설 다시 읽기 ↗
-                    </button>
-                  </div>
-                )}
-                {e.questions.map((q, i) => {
-                  const draft = makeDraft(q),
-                    result = feedback?.[q.id];
-                  return (
-                    <section className="deduction-card" key={`${e.id}-${q.id}`}>
-                      <div className="question-header">
-                        <span className="question-number">{pad(i + 1)}</span>
-                        <h2>{q.prompt}</h2>
-                        {result && (
-                          <span
-                            className={`verdict ${result.answer && result.evidence ? "correct" : ""}`}
-                          >
-                            {result.answer && result.evidence
-                              ? "입증 완료"
-                              : "재검토"}
-                          </span>
-                        )}
-                      </div>
-                      {q.kind === "choice" && (
-                        <fieldset
-                          className="choice-list"
-                          disabled={pending > 0}
-                        >
-                          <legend className="sr-only">{q.prompt}</legend>
-                          {q.options!.map((option, j) => (
-                            <label
-                              className={
-                                draft.answer === option ? "chosen" : ""
-                              }
-                              key={option}
-                            >
-                              <input
-                                type="radio"
-                                name={q.id}
-                                value={option}
-                                checked={draft.answer === option}
-                                onChange={() =>
-                                  saveDraft(q, { ...draft, answer: option })
-                                }
-                              />
-                              <span className="option-letter">
-                                {String.fromCharCode(65 + j)}
-                              </span>
-                              <span>{option}</span>
-                            </label>
-                          ))}
-                        </fieldset>
-                      )}
-                      {q.kind === "code" && (
-                        <CodeInput
-                          key={`${e.id}-${q.id}`}
-                          value={
-                            typeof draft.answer === "string" ? draft.answer : ""
-                          }
-                          placeholder={q.placeholder!}
-                          label={q.prompt}
-                          disabled={pending > 0}
-                          onCommit={(answer) =>
-                            saveDraft(q, { ...draft, answer })
-                          }
-                        />
-                      )}
-                      {q.kind === "order" && (
-                        <ol className="order-list">
-                          {(draft.answer as string[]).map((item, j, arr) => (
-                            <li key={item}>
-                              <span className="order-index">{j + 1}</span>
-                              <span>{item}</span>
-                              <div>
-                                <button
-                                  aria-label={`${item} 위로`}
-                                  disabled={j === 0 || pending > 0}
-                                  onClick={() => {
-                                    const a = [...arr];
-                                    [a[j - 1], a[j]] = [a[j], a[j - 1]];
-                                    saveDraft(q, { ...draft, answer: a });
-                                  }}
-                                >
-                                  ↑
-                                </button>
-                                <button
-                                  aria-label={`${item} 아래로`}
-                                  disabled={j === arr.length - 1 || pending > 0}
-                                  onClick={() => {
-                                    const a = [...arr];
-                                    [a[j + 1], a[j]] = [a[j], a[j + 1]];
-                                    saveDraft(q, { ...draft, answer: a });
-                                  }}
-                                >
-                                  ↓
-                                </button>
-                              </div>
-                            </li>
-                          ))}
-                        </ol>
-                      )}
-                      <div className="proof-heading">
-                        <span>
-                          뒷받침하는 증거{" "}
-                          <strong>
-                            {
-                              draft.evidence.filter((id) =>
-                                p.pinned.includes(id),
-                              ).length
-                            }
-                            /{q.evidenceCount}
-                          </strong>
-                        </span>
-                        <small>정확히 {q.evidenceCount}개 선택</small>
-                      </div>
-                      {evidence.length ? (
-                        <div className="proof-options">
-                          {evidence.map((r) => {
-                            const checked =
-                              draft.evidence.includes(r.id) &&
-                              p.pinned.includes(r.id);
-                            return (
-                              <label
-                                key={r.id}
-                                className={checked ? "selected" : ""}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  disabled={
-                                    pending > 0 ||
-                                    (!checked &&
-                                      draft.evidence.filter((id) =>
-                                        p.pinned.includes(id),
-                                      ).length >= q.evidenceCount)
-                                  }
-                                  onChange={() => {
-                                    const valid = draft.evidence.filter((id) =>
-                                      p.pinned.includes(id),
-                                    );
-                                    saveDraft(q, {
-                                      ...draft,
-                                      evidence: checked
-                                        ? valid.filter((id) => id !== r.id)
-                                        : [...valid, r.id],
-                                    });
-                                  }}
-                                />
-                                <span className="proof-id">{r.id}</span>
-                                <span>{r.title}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <button
-                          className="collect-prompt"
-                          onClick={() => goTab("board")}
-                        >
-                          게시판에서 증거 수집하기 ↗
-                        </button>
-                      )}
-                      {result && !(result.answer && result.evidence) && (
-                        <p className="feedback" role="status">
-                          {!result.answer
-                            ? "가설을 기록과 다시 대조해 보세요."
-                            : "가설은 맞습니다."}{" "}
-                          {!result.evidence &&
-                            `이 가설을 직접 입증하는 증거 ${q.evidenceCount}개를 다시 선택해 주세요.`}
-                        </p>
-                      )}
-                    </section>
-                  );
-                })}
-                <div className="submit-row">
-                  <p>
-                    시도 횟수 제한 없음 <span>·</span> {p.attempts[e.id] ?? 0}회
-                    검토
-                  </p>
-                  <button
-                    className="primary"
-                    onClick={solve}
-                    disabled={pending > 0}
-                  >
-                    세 가설 검증하기 <span>→</span>
-                  </button>
-                </div>
-              </>
+              <CommunityBoard
+                key={e.id}
+                episode={e}
+                progress={p}
+                onOpen={openRecord}
+                onStory={() => setShowPrologue(true)}
+              />
             )}
             {tab === "notes" && (
               <section className="notes-panel">
@@ -856,8 +531,309 @@ export default function Game() {
             <span>ARCHIVE IS NOT EMPTY.</span>
           </footer>
         </div>
+        {p.started && (
+          <div className="investigation-dock" aria-label="조사 도구">
+            <span>CASE {pad(e.id)}</span>
+            <button onClick={() => goTab("evidence")} aria-haspopup="dialog">
+              ⌑ 증거 보관함 <b>{p.pinned.length}</b>
+            </button>
+            <button onClick={() => goTab("deductions")} aria-haspopup="dialog">
+              ✎ 추리 노트
+            </button>
+          </div>
+        )}
+        {tool === "evidence" && (
+          <Dialog wide label="증거 보관함" onClose={() => setTool(null)}>
+            <div className="tool-window-heading">
+              <span className="eyebrow coral">EVIDENCE CABINET</span>
+              <h2>증거 보관함</h2>
+              <p>게시판을 그대로 두고, 모아 둔 기록을 대조하세요.</p>
+              <button
+                className="text-button"
+                onClick={() => {
+                  setQuery("");
+                  setTool("deductions");
+                }}
+              >
+                추리 노트로 전환 ↗
+              </button>
+            </div>
+            <div className="evidence-toolbar">
+              <p>
+                전 사건에서 수집한 기록 <strong>{evidence.length}</strong>개
+              </p>
+              <Search query={query} onChange={setQuery} />
+            </div>
+            <div className="evidence-grid">
+              {visible.map((r) => (
+                <button
+                  className="evidence-card"
+                  key={r.id}
+                  onClick={() => openRecord(r)}
+                >
+                  <div>
+                    <span className="file-number">FILE {r.id}</span>
+                    <span className="coral">⌑</span>
+                  </div>
+                  {r.photo && (
+                    <img
+                      className="evidence-photo"
+                      src={r.photo.src}
+                      alt={r.photo.alt}
+                      width="300"
+                      height="140"
+                      loading="lazy"
+                    />
+                  )}
+                  <span className="category">{r.board}</span>
+                  <h3>{r.title}</h3>
+                  <p>{r.paragraphs[0]}</p>
+                  <footer>
+                    {r.author}
+                    <span>열어보기 ↗</span>
+                  </footer>
+                </button>
+              ))}
+            </div>
+            {!visible.length && (
+              <Empty
+                text={
+                  evidence.length
+                    ? "일치하는 증거가 없습니다."
+                    : "아직 수집한 증거가 없습니다."
+                }
+                detail="게시글을 열고 ‘증거 수집’ 버튼을 눌러 보관하세요."
+                onReset={() => goTab("board")}
+              />
+            )}
+          </Dialog>
+        )}
+        {tool === "deductions" && (
+          <Dialog wide label="추리 노트" onClose={() => setTool(null)}>
+            <div className="tool-window-heading">
+              <span className="eyebrow coral">
+                CASE {pad(e.id)} · DEDUCTION NOTES
+              </span>
+              <h2>추리 노트</h2>
+              <p>
+                {e.title} · {e.objective}
+              </p>
+              <button
+                className="text-button"
+                onClick={() => {
+                  setQuery("");
+                  setTool("evidence");
+                }}
+              >
+                증거 보관함으로 전환 ↗
+              </button>
+            </div>
+            <div className="deduction-intro">
+              <p>
+                <strong>답과 근거가 함께 맞아야</strong> 가설이 입증됩니다.
+                필요한 기록을 먼저 증거 보관함에 수집하세요.
+              </p>
+              <button className="secondary" onClick={() => setShowHint(true)}>
+                힌트 {level}/3
+              </button>
+            </div>
+            {solved && (
+              <div className="solved-banner">
+                <span>✓ 이 사건을 해결했습니다.</span>
+                <button onClick={() => setShowResolution(e.id)}>
+                  해설 다시 읽기 ↗
+                </button>
+              </div>
+            )}
+            {e.questions.map((q, i) => {
+              const draft = makeDraft(q),
+                result = feedback?.[q.id];
+              return (
+                <section className="deduction-card" key={`${e.id}-${q.id}`}>
+                  <div className="question-header">
+                    <span className="question-number">{pad(i + 1)}</span>
+                    <h2>{q.prompt}</h2>
+                    {result && (
+                      <span
+                        className={`verdict ${result.answer && result.evidence ? "correct" : ""}`}
+                      >
+                        {result.answer && result.evidence
+                          ? "입증 완료"
+                          : "재검토"}
+                      </span>
+                    )}
+                  </div>
+                  {q.kind === "choice" && (
+                    <fieldset className="choice-list" disabled={pending > 0}>
+                      <legend className="sr-only">{q.prompt}</legend>
+                      {q.options!.map((option, j) => (
+                        <label
+                          className={draft.answer === option ? "chosen" : ""}
+                          key={option}
+                        >
+                          <input
+                            type="radio"
+                            name={q.id}
+                            value={option}
+                            checked={draft.answer === option}
+                            onChange={() =>
+                              saveDraft(q, { ...draft, answer: option })
+                            }
+                          />
+                          <span className="option-letter">
+                            {String.fromCharCode(65 + j)}
+                          </span>
+                          <span>{option}</span>
+                        </label>
+                      ))}
+                    </fieldset>
+                  )}
+                  {q.kind === "code" && (
+                    <CodeInput
+                      key={`${e.id}-${q.id}`}
+                      value={
+                        typeof draft.answer === "string" ? draft.answer : ""
+                      }
+                      placeholder={q.placeholder!}
+                      label={q.prompt}
+                      disabled={pending > 0}
+                      onCommit={(answer) => saveDraft(q, { ...draft, answer })}
+                    />
+                  )}
+                  {q.kind === "order" && (
+                    <ol className="order-list">
+                      {(draft.answer as string[]).map((item, j, arr) => (
+                        <li key={item}>
+                          <span className="order-index">{j + 1}</span>
+                          <span>{item}</span>
+                          <div>
+                            <button
+                              aria-label={`${item} 위로`}
+                              disabled={j === 0 || pending > 0}
+                              onClick={() => {
+                                const a = [...arr];
+                                [a[j - 1], a[j]] = [a[j], a[j - 1]];
+                                saveDraft(q, { ...draft, answer: a });
+                              }}
+                            >
+                              ↑
+                            </button>
+                            <button
+                              aria-label={`${item} 아래로`}
+                              disabled={j === arr.length - 1 || pending > 0}
+                              onClick={() => {
+                                const a = [...arr];
+                                [a[j + 1], a[j]] = [a[j], a[j + 1]];
+                                saveDraft(q, { ...draft, answer: a });
+                              }}
+                            >
+                              ↓
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                  <div className="proof-heading">
+                    <span>
+                      뒷받침하는 증거{" "}
+                      <strong>
+                        {
+                          draft.evidence.filter((id) => p.pinned.includes(id))
+                            .length
+                        }
+                        /{q.evidenceCount}
+                      </strong>
+                    </span>
+                    <small>정확히 {q.evidenceCount}개 선택</small>
+                  </div>
+                  {evidence.length ? (
+                    <div className="proof-options">
+                      {evidence.map((r) => {
+                        const checked =
+                          draft.evidence.includes(r.id) &&
+                          p.pinned.includes(r.id);
+                        return (
+                          <div className="proof-option" key={r.id}>
+                            <label className={checked ? "selected" : ""}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={
+                                  pending > 0 ||
+                                  (!checked &&
+                                    draft.evidence.filter((id) =>
+                                      p.pinned.includes(id),
+                                    ).length >= q.evidenceCount)
+                                }
+                                onChange={() => {
+                                  const valid = draft.evidence.filter((id) =>
+                                    p.pinned.includes(id),
+                                  );
+                                  saveDraft(q, {
+                                    ...draft,
+                                    evidence: checked
+                                      ? valid.filter((id) => id !== r.id)
+                                      : [...valid, r.id],
+                                  });
+                                }}
+                              />
+                              <span className="proof-id">{r.id}</span>
+                              <span>{r.title}</span>
+                            </label>
+                            <button
+                              className="proof-read"
+                              aria-label={r.title + " 원문 읽기"}
+                              onClick={() => openRecord(r)}
+                            >
+                              원문 ↗
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <button
+                      className="collect-prompt"
+                      onClick={() => goTab("board")}
+                    >
+                      게시판에서 증거 수집하기 ↗
+                    </button>
+                  )}
+                  {result && !(result.answer && result.evidence) && (
+                    <p className="feedback" role="status">
+                      {!result.answer
+                        ? "가설을 기록과 다시 대조해 보세요."
+                        : "가설은 맞습니다."}{" "}
+                      {!result.evidence &&
+                        `이 가설을 직접 입증하는 증거 ${q.evidenceCount}개를 다시 선택해 주세요.`}
+                    </p>
+                  )}
+                </section>
+              );
+            })}
+            <div className="submit-row">
+              <p>
+                시도 횟수 제한 없음 <span>·</span> {p.attempts[e.id] ?? 0}회
+                검토
+              </p>
+              <button
+                className="primary"
+                onClick={solve}
+                disabled={pending > 0}
+              >
+                세 가설 검증하기 <span>→</span>
+              </button>
+            </div>
+          </Dialog>
+        )}
         {selected && (
-          <Dialog wide label={selected.title} onClose={() => setSelected(null)}>
+          <Dialog
+            key={`${selected.id}-${recordWindow}`}
+            wide
+            label={selected.title}
+            onClose={() => setSelected(null)}
+          >
             <div className="document-kicker">
               RECORD {selected.id} <span>{selected.board}</span>
               {selected.deleted && (
@@ -866,14 +842,37 @@ export default function Game() {
             </div>
             <h2 className="document-title">{selected.title}</h2>
             <div className="document-meta">
+              <ResidentAvatar name={selected.author} />
               <span>{selected.author}</span>
               <time>2026.{selected.date}</time>
+              <span>조회 {recordStats(selected).views}</span>
+              {selected.status && (
+                <span className="post-status">{selected.status}</span>
+              )}
             </div>
             <div className="document-body">
               {selected.paragraphs.map((text, i) => (
                 <p key={i}>{text}</p>
               ))}
             </div>
+            {selected.photo && (
+              <figure className="document-photo">
+                <a
+                  href={selected.photo.src}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="첨부 사진 크게 보기"
+                >
+                  <img
+                    src={selected.photo.src}
+                    alt={selected.photo.alt}
+                    width="1000"
+                    height="1000"
+                  />
+                </a>
+                <figcaption>{selected.photo.caption}</figcaption>
+              </figure>
+            )}
             {selected.attachment && (
               <section className="attachment">
                 <h3>↳ {selected.attachment.title}</h3>
@@ -903,13 +902,30 @@ export default function Game() {
               <section className="comments">
                 <h3>댓글 {selected.comments.length}</h3>
                 {selected.comments.map((c, i) => (
-                  <div key={i}>
-                    <strong>{c.author}</strong>
-                    <p>{c.text}</p>
+                  <div className="resident-comment" key={i}>
+                    <ResidentAvatar name={c.author} />
+                    <div>
+                      <strong>{c.author}</strong>
+                      {c.date && <time>{c.date}</time>}
+                      <p>{c.text}</p>
+                    </div>
                   </div>
                 ))}
               </section>
             )}
+            <div className="post-reactions">
+              <button
+                className="secondary"
+                aria-pressed={(p.liked ?? []).includes(selected.id)}
+                disabled={pending > 0}
+                onClick={() => send({ type: "like", record: selected.id })}
+              >
+                ♡ 공감{" "}
+                {recordStats(selected).likes +
+                  ((p.liked ?? []).includes(selected.id) ? 1 : 0)}
+              </button>
+              <span>댓글과 조회수는 보관 당시의 모습입니다.</span>
+            </div>
             <footer className="document-footer">
               <span>
                 {p.pinned.includes(selected.id)
@@ -926,46 +942,36 @@ export default function Game() {
                 {p.pinned.includes(selected.id) ? "수집 해제" : "⌑ 증거 수집"}
               </button>
             </footer>
+            <div className="document-tools">
+              <button className="text-button" onClick={() => goTab("evidence")}>
+                증거 보관함 열기 ↗
+              </button>
+              <button
+                className="text-button"
+                onClick={() => goTab("deductions")}
+              >
+                추리 노트 열기 ↗
+              </button>
+            </div>
           </Dialog>
         )}
-        {!p.started && (
-          <Dialog
-            label="기록자에게 도착한 의뢰"
-            onClose={() => {
-              void send({ type: "start" });
+        {(!p.started ||
+          showPrologue ||
+          !(p.introduced ?? []).includes(e.id)) && (
+          <StoryPrologue
+            episode={!p.started ? episodes[0] : e}
+            first={!p.started}
+            pending={pending > 0}
+            onContinue={() => {
+              if (pending > 0) return;
+              if (!p.started) void send({ type: "start" });
+              else if (!(p.introduced ?? []).includes(e.id))
+                void send({ type: "intro", episode: e.id }).then((data) => {
+                  if (data) setShowPrologue(false);
+                });
+              else setShowPrologue(false);
             }}
-          >
-            <div className="eyebrow coral">INCOMING MESSAGE / 02:13</div>
-            <h2 className="modal-title">이 기록이 사라지기 전에.</h2>
-            <p className="modal-prose">
-              “서윤 씨가 이사 갔다는 말을 믿지 마세요.
-              <br />
-              답은 우리가 매일 지나쳤던 글 속에 있어요.”
-            </p>
-            <div className="intro-guide">
-              <p>
-                <span>01</span> 게시글을 열어 단서를 읽으세요.
-              </p>
-              <p>
-                <span>02</span> 중요한 기록을 증거로 수집하세요.
-              </p>
-              <p>
-                <span>03</span> 추리 노트에서 답과 근거를 연결하세요.
-              </p>
-            </div>
-            <p className="muted small">
-              8화 완결 · 약 2시간 · 시간 제한 없음
-              <br />
-              진행은 자동 저장되어 나중에 이어 할 수 있습니다.
-            </p>
-            <button
-              className="primary full"
-              disabled={pending > 0}
-              onClick={() => send({ type: "start" })}
-            >
-              첫 번째 기록 열기 →
-            </button>
-          </Dialog>
+          />
         )}
         {help && (
           <Dialog label="플레이 안내" onClose={() => setHelp(false)}>
@@ -1161,8 +1167,10 @@ export default function Game() {
                     setNoteDirty(false);
                     setTab("board");
                     setQuery("");
-                    setBoard("전체");
+                    setTool(null);
                     setFeedback(null);
+                    setSelected(null);
+                    setShowPrologue(false);
                   }
                 }}
               >

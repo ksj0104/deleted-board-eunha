@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
+import "./community.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const h = await headers();
@@ -10,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "삭제된 게시판 — 은하아파트 기록",
     description:
-      "한 사람이 사라졌다. 게시판도 사라질 예정이다. 48개의 기록을 연결해 8개의 사건을 해결하는 웹 추리 게임.",
+      "한 사람이 사라졌다. 게시판도 사라질 예정이다. 사진과 댓글, 112개의 게시글 속 기록을 연결해 8개의 사건을 해결하는 웹 추리 게임.",
     robots: { index: false, follow: false },
     openGraph: {
       title: "삭제된 게시판",

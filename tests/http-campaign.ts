@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { episodes } from "../lib/cases";
 import { walkthrough } from "./walkthrough";
+import { communityImages } from "../lib/community";
+import type { gameView } from "../lib/game";
 const base = process.env.GAME_TEST_URL ?? "http://localhost:3000";
 let cookie = "";
 async function request(action?: unknown, expected = 200) {
@@ -14,7 +16,9 @@ async function request(action?: unknown, expected = 200) {
   });
   const setCookie = r.headers.get("set-cookie");
   if (setCookie) cookie = setCookie.split(";")[0];
-  const data = (await r.json()) as any;
+  const data = (await r.json()) as ReturnType<typeof gameView> & {
+    error?: string;
+  };
   assert.equal(r.status, expected, JSON.stringify(data));
   return data;
 }
@@ -28,8 +32,16 @@ assert.match(
 await request({ type: "visit", episode: 8 }, 400);
 await request({ type: "pin", record: "8-1" }, 400);
 await request({ type: "start" });
+await request({ type: "like", record: "8-7" }, 400);
+await request({ type: "like", record: "1-7" });
+await request({ type: "pin", record: "1-7" });
+assert.ok((await request()).progress.liked?.includes("1-7"));
+assert.ok((await request()).progress.pinned.includes("1-7"));
+await request({ type: "pin", record: "1-7" });
 for (const ep of episodes) {
   await request({ type: "visit", episode: ep.id });
+  await request({ type: "intro", episode: ep.id });
+  assert.ok((await request()).progress.introduced?.includes(ep.id));
   const incorrect = await request({ type: "solve" });
   assert.equal(incorrect.progress.solved.length, ep.id - 1);
   for (const r of ep.records) {
@@ -53,9 +65,9 @@ for (const ep of episodes) {
   );
 }
 view = await request({ type: "ending", ending: "public" });
-assert.equal(view.ending.title, "다시 열린 게시판");
+assert.equal(view.ending?.title, "다시 열린 게시판");
 view = await request({ type: "ending", ending: "audit" });
-assert.equal(view.ending.title, "조용히 남은 원본");
+assert.equal(view.ending?.title, "조용히 남은 원본");
 const firstCookie = cookie;
 cookie = "";
 assert.equal((await request()).progress.solved.length, 0);
@@ -71,7 +83,7 @@ const forged = await fetch(`${base}/api/game`, {
   },
   body: JSON.stringify({ type: "reset" }),
 });
-assert.equal(forged.status, 403);
+assert.equal(forged.status, 403, await forged.text());
 const malformed = await fetch(`${base}/api/game`, {
   method: "POST",
   headers: { Cookie: cookie, "Content-Type": "application/json" },
@@ -100,8 +112,22 @@ assert.match(html, /property="og:image"/);
 const card = await fetch(`${base}/og.png`);
 assert.equal(card.status, 200);
 assert.match(card.headers.get("content-type") ?? "", /image\/png/);
+for (const path of [
+  ...Object.values(communityImages).map((a) => a.src),
+  ...episodes.map((e) => `/story/${String(e.id).padStart(2, "0")}.webp`),
+]) {
+  const img = await fetch(base + path);
+  assert.equal(img.status, 200, path);
+  assert.match(img.headers.get("content-type") ?? "", /image\/webp/);
+  assert.ok((await img.arrayBuffer()).byteLength > 10000, path);
+}
+console.log(
+  "PASS HTTP: all 14 community/prologue images and persisted introduction/reaction state",
+);
 const assets = [
-  ...html.matchAll(/(?:src|href)="(\/assets\/[^"?#]+\.(?:js|css))"/g),
+  ...html.matchAll(
+    /<(?:script|link)\b[^>]*\b(?:src|href)="(\/(?:assets|app|@id)\/[^"?#]+)"/g,
+  ),
 ].map((m) => m[1]);
 assert.ok(
   assets.length >= 2,

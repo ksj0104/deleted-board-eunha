@@ -9,13 +9,66 @@ import {
   unlocked,
 } from "../lib/game";
 import { walkthrough } from "./walkthrough";
+import { communityPosts } from "../lib/community";
+import { episodeStories } from "../lib/stories";
+import { existsSync } from "node:fs";
 
-test("the complete campaign has 8 authored episodes, 48 records, 24 deductions, and valid reachable evidence", () => {
+test("legacy saves gain prologue history and reactions without losing progress; everyday posts obey locks and cannot replace proof", () => {
+  let p = freshProgress();
+  delete p.liked;
+  delete p.introduced;
+  p.started = true;
+  p.notes[1] = "이전 버전의 메모";
+  p = applyAction(p, { type: "intro", episode: 1 }).progress;
+  p = applyAction(p, { type: "intro", episode: 1 }).progress;
+  assert.deepEqual(p.introduced, [1]);
+  p = applyAction(p, { type: "like", record: "1-7" }).progress;
+  assert.deepEqual(p.liked, ["1-7"]);
+  assert.ok(p.read.includes("1-7"));
+  p = JSON.parse(JSON.stringify(p));
+  p = applyAction(p, { type: "like", record: "1-7" }).progress;
+  assert.deepEqual(p.liked, []);
+  assert.equal(p.notes[1], "이전 버전의 메모");
+  for (const type of ["read", "pin", "like"])
+    assert.throws(() => applyAction(p, { type, record: "2-7" }));
+  assert.throws(() => applyAction(p, { type: "intro", episode: 2 }));
+  p = applyAction(p, { type: "pin", record: "1-7" }).progress;
+  p = applyAction(p, { type: "pin", record: "1-8" }).progress;
+  const [answer] = walkthrough[0].alias;
+  const result = grade(
+    1,
+    { alias: { answer, evidence: ["1-7", "1-8"] } },
+    p.pinned,
+  ).alias;
+  assert.equal(result.answer, true);
+  assert.equal(result.evidence, false);
+  assert.deepEqual(applyAction(p, { type: "reset" }).progress, freshProgress());
+});
+
+test("the complete campaign has 8 stories, 48 core records, 64 community posts, and 24 reachable deductions", () => {
   assert.equal(episodes.length, 8);
-  assert.equal(allRecords.length, 48);
-  assert.equal(new Set(allRecords.map((r) => r.id)).size, 48);
+  assert.equal(episodes.flatMap((e) => e.records).length, 48);
+  assert.equal(allRecords.length, 112);
+  assert.equal(new Set(allRecords.map((r) => r.id)).size, 112);
+  assert.equal(communityPosts.length, 64);
+  assert.equal(episodeStories.length, 8);
   assert.equal(new Set(episodes.map((e) => e.mechanic)).size, 8);
   for (const ep of episodes) {
+    const neighbors = communityPosts.filter((r) =>
+      r.id.startsWith(`${ep.id}-`),
+    );
+    assert.equal(neighbors.length, 8);
+    assert.ok(new Set(neighbors.map((r) => r.board)).size >= 4);
+    assert.ok(neighbors.some((r) => r.photo));
+    for (const r of neighbors) {
+      assert.ok(r.comments?.length);
+      assert.ok(r.date.slice(0, 5) <= ep.date);
+      if (r.photo) assert.ok(existsSync("public" + r.photo.src), r.photo.src);
+    }
+    assert.ok(episodeStories[ep.id - 1].paragraphs.join("").length > 180);
+    assert.ok(
+      existsSync(`public/story/${String(ep.id).padStart(2, "0")}.webp`),
+    );
     assert.ok(ep.intro.length > 70);
     assert.equal(ep.questions.length, 3);
     assert.equal(ep.hints.length, 3);

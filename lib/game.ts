@@ -9,6 +9,8 @@ export type Progress = {
   solved: number[];
   read: string[];
   pinned: string[];
+  liked?: string[];
+  introduced?: number[];
   notes: Record<string, string>;
   drafts: Record<string, Record<string, Draft>>;
   hints: Record<string, number>;
@@ -32,6 +34,8 @@ export const freshProgress = (): Progress => ({
   solved: [],
   read: [],
   pinned: [],
+  liked: [],
+  introduced: [],
   notes: {},
   drafts: {},
   hints: {},
@@ -82,13 +86,25 @@ export function applyAction(
       "아직 열리지 않은 사건입니다. 앞 사건을 먼저 해결해 주세요.",
     );
   const e = episodes[ep - 1];
-  if (action.type === "start") p.started = true;
+  if (action.type === "start") {
+    p.started = true;
+    p.introduced = [...new Set([...(p.introduced ?? []), 1])];
+  } else if (action.type === "intro")
+    p.introduced = [...new Set([...(p.introduced ?? []), ep])];
   else if (action.type === "visit") p.active = ep;
-  else if (action.type === "read" || action.type === "pin") {
+  else if (
+    action.type === "read" ||
+    action.type === "pin" ||
+    action.type === "like"
+  ) {
     const r = recordById(action.record ?? "");
     if (!r || Number(r.id.split("-")[0]) > unlocked(p))
       throw new Error("열람할 수 없는 기록입니다.");
     if (!p.read.includes(r.id)) p.read.push(r.id);
+    if (action.type === "like")
+      p.liked = (p.liked ?? []).includes(r.id)
+        ? p.liked!.filter((id) => id !== r.id)
+        : [...(p.liked ?? []), r.id];
     if (action.type === "pin") {
       p.pinned = p.pinned.includes(r.id)
         ? p.pinned.filter((id) => id !== r.id)

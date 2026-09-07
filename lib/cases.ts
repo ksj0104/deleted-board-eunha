@@ -1,3 +1,4 @@
+import { communityPosts } from "./community";
 export type RecordFile = {
   id: string;
   board: string;
@@ -5,7 +6,9 @@ export type RecordFile = {
   author: string;
   date: string;
   paragraphs: string[];
-  comments?: { author: string; text: string }[];
+  comments?: { author: string; text: string; date?: string }[];
+  photo?: { src: string; alt: string; caption: string };
+  status?: string;
   attachment?: { title: string; columns: string[]; rows: string[][] };
   deleted?: boolean;
 };
@@ -995,5 +998,8 @@ export const episodes: Episode[] = [
   },
 ];
 
-export const allRecords = episodes.flatMap((e) => e.records);
+export const allRecords = [
+  ...episodes.flatMap((e) => e.records),
+  ...communityPosts,
+];
 export const recordById = (id: string) => allRecords.find((r) => r.id === id);
