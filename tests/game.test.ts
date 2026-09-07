@@ -13,6 +13,60 @@ import { communityPosts } from "../lib/community";
 import { episodeStories } from "../lib/stories";
 import { existsSync } from "node:fs";
 import { investigationGuides, questionPreparation } from "../lib/investigation";
+import { caseThreads, inquiryDiscovered } from "../lib/narrative";
+
+test("inquiries emerge from relevant records, preserve existing drafts and remain reachable throughout the campaign", () => {
+  const ep = episodes[0];
+  const visible = (p: ReturnType<typeof freshProgress>) =>
+    ep.questions.filter((q) => inquiryDiscovered(ep, q, p)).map((q) => q.id);
+  let p = applyAction(freshProgress(), { type: "start" }).progress;
+  assert.deepEqual(visible(p), []);
+  p = applyAction(p, { type: "read", record: "1-7" }).progress;
+  assert.deepEqual(
+    visible(p),
+    [],
+    "everyday posts do not invent case questions",
+  );
+  p = applyAction(p, { type: "read", record: "1-1" }).progress;
+  assert.deepEqual(visible(p), ["status"]);
+  p = applyAction(p, { type: "read", record: "1-2" }).progress;
+  assert.deepEqual(visible(p), ["alias", "status"]);
+  p = applyAction(p, { type: "read", record: "1-5" }).progress;
+  assert.deepEqual(visible(p), ["alias", "status", "meeting"]);
+  const legacy = freshProgress();
+  legacy.drafts[1] = { meeting: { answer: "302호", evidence: [] } };
+  assert.deepEqual(visible(legacy), ["meeting"], "old work is never hidden");
+  legacy.solved = [1];
+  assert.equal(visible(legacy).length, 3);
+
+  assert.equal(caseThreads.length, episodes.length);
+  for (const episode of episodes) {
+    const thread = caseThreads[episode.id - 1];
+    assert.deepEqual(
+      Object.keys(thread.inquiries).sort(),
+      episode.questions.map((q) => q.id).sort(),
+    );
+    const untouched = freshProgress();
+    const readAll = { ...untouched, read: episode.records.map((r) => r.id) };
+    for (const q of episode.questions) {
+      const inquiry = thread.inquiries[q.id];
+      assert.ok(inquiry.because && inquiry.leadsTo);
+      assert.ok(inquiry.discoveredBy.length);
+      for (const id of inquiry.discoveredBy) {
+        assert.ok(
+          episode.records.some((r) => r.id === id),
+          `${episode.id}/${q.id}: ${id}`,
+        );
+        assert.equal(
+          inquiryDiscovered(episode, q, { ...untouched, read: [id] }),
+          true,
+        );
+      }
+      assert.equal(inquiryDiscovered(episode, q, untouched), false);
+      assert.equal(inquiryDiscovered(episode, q, readAll), true);
+    }
+  }
+});
 
 test("investigation guidance covers all questions and distinguishes prepared answers from verified conclusions", () => {
   for (const ep of episodes) {

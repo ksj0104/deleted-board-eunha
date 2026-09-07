@@ -5,6 +5,7 @@ import React from "react";
 import { episodes, recordById } from "../lib/cases";
 import { freshProgress, applyAction, gameView, type Action } from "../lib/game";
 import { walkthrough } from "./walkthrough";
+import { caseThreads, mainCase } from "../lib/narrative";
 import Game from "../app/Game";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
@@ -33,7 +34,7 @@ const { render, screen, within, waitFor, cleanup, fireEvent } =
 const { default: userEvent } = await import("@testing-library/user-event");
 afterEach(() => cleanup());
 
-test("UI: explicit objectives lead to the right question and explain missing evidence without marking it solved", async () => {
+test("UI: a central case leads to record-driven questions with a reason, purpose and focused notes", async () => {
   let state = applyAction(freshProgress(), { type: "start" }).progress;
   globalThis.fetch = (async (
     _url: unknown,
@@ -51,9 +52,13 @@ test("UI: explicit objectives lead to the right question and explain missing evi
   const guide = await screen.findByRole("region", {
     name: "이번 사건의 해결 목표",
   });
-  assert.equal(guide.querySelectorAll(".goal-list li").length, 3);
+  assert.ok(within(guide).getByText(mainCase.question));
+  assert.ok(
+    within(guide).getByRole("heading", { name: caseThreads[0].question }),
+  );
+  assert.equal(guide.querySelectorAll(".goal-list li").length, 0);
   for (const q of episodes[0].questions)
-    assert.ok(within(guide).getByText(q.prompt));
+    assert.equal(within(guide).queryByText(q.prompt), null);
   assert.ok(
     within(guide).getByText(/모든 일상 글을 읽거나 수집할 필요는 없습니다/),
   );
@@ -61,9 +66,14 @@ test("UI: explicit objectives lead to the right question and explain missing evi
   const entry = screen.getByRole("dialog", {
     name: episodes[0].records[0].title,
   });
+  await waitFor(() => assert.ok(state.read.includes("1-1")));
+  assert.ok(within(entry).getByText(caseThreads[0].inquiries.status.because));
   await user.click(within(entry).getByRole("button", { name: "닫기" }));
+  assert.equal(guide.querySelectorAll(".goal-list li").length, 1);
   await user.click(
-    within(guide).getByRole("button", { name: "질문 2 답과 근거 작성" }),
+    within(guide).getByRole("button", {
+      name: `${caseThreads[0].inquiries.status.title} 조사 노트 열기`,
+    }),
   );
   const notes = screen.getByRole("dialog", { name: "추리 노트" });
   const section = document.getElementById("question-1-status")!;
@@ -75,6 +85,13 @@ test("UI: explicit objectives lead to the right question and explain missing evi
   assert.ok(
     within(notes).getByText(/글을 수집한 것만으로는 근거가 연결되지 않습니다/),
   );
+  assert.ok(within(section).getByText(caseThreads[0].inquiries.status.leadsTo));
+  assert.equal(
+    within(notes).queryByRole("heading", {
+      name: episodes[0].questions[0].prompt,
+    }),
+    null,
+  );
   await user.click(
     within(section).getByRole("radio", {
       name: new RegExp(episodes[0].questions[1].options![0]),
@@ -82,15 +99,31 @@ test("UI: explicit objectives lead to the right question and explain missing evi
   );
   await waitFor(() => assert.ok(state.drafts[1]?.status));
   await user.click(within(notes).getByRole("button", { name: "닫기" }));
-  const second = guide.querySelectorAll(".goal-list li")[1] as HTMLElement;
+  const second = guide.querySelectorAll(".goal-list li")[0] as HTMLElement;
   assert.ok(within(second).getByText("근거 선택하기"));
   assert.ok(within(second).getByText("근거 0/2개"));
   assert.equal(state.solved.length, 0);
+  const search = screen.getByRole("searchbox", { name: "기록 검색" });
+  for (const id of ["1-2", "1-5"]) {
+    const record = recordById(id)!;
+    fireEvent.change(search, { target: { value: record.title } });
+    await user.click(document.querySelector<HTMLButtonElement>(".record-row")!);
+    await waitFor(() => assert.ok(state.read.includes(id)));
+    await user.click(
+      within(screen.getByRole("dialog", { name: record.title })).getByRole(
+        "button",
+        { name: "닫기" },
+      ),
+    );
+  }
+  assert.equal(guide.querySelectorAll(".goal-list li").length, 3);
   const board = document.querySelector(".community-board");
   await user.click(screen.getByRole("button", { name: "해결 목표" }));
   const goals = screen.getByRole("dialog", { name: "현재 사건의 해결 목표" });
   await user.click(
-    within(goals).getByRole("button", { name: "질문 3 답과 근거 작성" }),
+    within(goals).getByRole("button", {
+      name: `${caseThreads[0].inquiries.meeting.title} 조사 노트 열기`,
+    }),
   );
   assert.equal(
     screen.queryByRole("dialog", { name: "현재 사건의 해결 목표" }),
@@ -109,6 +142,7 @@ test(
   { timeout: 45000 },
   async () => {
     let state = applyAction(freshProgress(), { type: "start" }).progress;
+    state = applyAction(state, { type: "read", record: "1-2" }).progress;
     globalThis.fetch = (async (
       _url: unknown,
       options?: { method?: string; body?: string },
@@ -284,8 +318,14 @@ test(
     }) as typeof fetch;
     const user = userEvent.setup({ document: dom.window.document });
     render(<Game />);
+    const intro = await screen.findByRole("dialog", {
+      name: "기록자에게 도착한 의뢰",
+    });
+    assert.ok(within(intro).getByText(mainCase.question));
+    for (const q of episodes[0].questions)
+      assert.equal(within(intro).queryByText(q.prompt), null);
     await user.click(
-      await screen.findByRole("button", { name: "첫 번째 기록 열기 →" }),
+      within(intro).getByRole("button", { name: "첫 번째 기록 열기 →" }),
     );
     const idle = () =>
       waitFor(() => assert.ok(screen.getByText("자동 저장됨")), {
@@ -344,7 +384,7 @@ test(
       await idle();
       assert.match(state.notes[ep.id], /화면에서 남긴/);
       await click(screen.getByRole("button", { name: "추리 노트" }));
-      await click(screen.getByRole("button", { name: /세 가설 검증하기/ }));
+      await click(screen.getByRole("button", { name: /내 추리 검증하기/ }));
       assert.equal(document.querySelectorAll(".verdict").length, 3);
       assert.equal(state.solved.length, ep.id - 1);
       await user.click(screen.getByRole("button", { name: /힌트 \d\/3/ }));
@@ -393,7 +433,12 @@ test(
           await click(within(label).getByRole("checkbox"));
         }
       }
-      await click(screen.getByRole("button", { name: /세 가설 검증하기/ }));
+      await click(
+        within(screen.getByRole("dialog", { name: "추리 노트" })).getByRole(
+          "button",
+          { name: /내 추리 검증하기/ },
+        ),
+      );
       assert.equal(state.solved.length, ep.id);
       const result = screen.getByRole("dialog", { name: "사건 해결" });
       await click(

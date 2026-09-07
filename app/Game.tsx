@@ -19,6 +19,7 @@ import StoryPrologue from "./StoryPrologue";
 import { recordStats } from "../lib/community";
 import InvestigationGuide from "./InvestigationGuide";
 import { investigationGuides, questionPreparation } from "../lib/investigation";
+import { caseThreads, inquiryDiscovered } from "../lib/narrative";
 type Resolution = { title: string; text: string; next: string };
 type View = {
   progress: Progress;
@@ -199,6 +200,9 @@ export default function Game() {
     maxEpisode = Math.min(8, p.solved.length + 1),
     solved = p.solved.includes(e.id);
   const evidence = p.pinned.map(recordById).filter((r): r is RecordFile => !!r);
+  const discoveredQuestions = e.questions.filter((q) =>
+    inquiryDiscovered(e, q, p),
+  );
   const search = query.trim().toLocaleLowerCase();
   const source = evidence;
   const visible = source.filter(
@@ -679,9 +683,7 @@ export default function Game() {
                 CASE {pad(e.id)} · DEDUCTION NOTES
               </span>
               <h2>추리 노트</h2>
-              <p>
-                {e.title} · {e.objective}
-              </p>
+              <p>{caseThreads[e.id - 1].question}</p>
               <button
                 className="text-button"
                 onClick={() => {
@@ -695,10 +697,10 @@ export default function Game() {
             <div className="deduction-intro">
               <p>
                 <strong>
-                  각 질문에 답을 입력하고, 바로 아래에서 근거를 선택하세요.
+                  읽은 기록에서 생긴 의문을 정리하고, 근거와 연결하세요.
                 </strong>
-                글을 수집한 것만으로는 근거가 연결되지 않습니다. 세 질문을 채운
-                뒤 맨 아래 ‘세 가설 검증하기’를 누르면 됩니다.
+                글을 수집한 것만으로는 근거가 연결되지 않습니다. 추리를 정리한
+                뒤 ‘내 추리 검증하기’를 누르세요.
               </p>
               <button className="secondary" onClick={() => setShowHint(true)}>
                 힌트 {level}/3
@@ -712,7 +714,19 @@ export default function Game() {
                 </button>
               </div>
             )}
-            {e.questions.map((q, i) => {
+            {!discoveredQuestions.length && (
+              <div className="notebook-start">
+                <h3>먼저 사건의 출발점을 확인하세요</h3>
+                <p>{caseThreads[e.id - 1].entryReason}</p>
+                <button
+                  className="primary"
+                  onClick={() => openRecord(e.records[0])}
+                >
+                  {e.records[0].title} 읽기 ↗
+                </button>
+              </div>
+            )}
+            {discoveredQuestions.map((q, i) => {
               const draft = makeDraft(q),
                 result = feedback?.[q.id];
               return (
@@ -734,6 +748,16 @@ export default function Game() {
                           : "재검토"}
                       </span>
                     )}
+                  </div>
+                  <div className="deduction-motivation">
+                    <strong>
+                      {caseThreads[e.id - 1].inquiries[q.id].title}
+                    </strong>
+                    <p>{caseThreads[e.id - 1].inquiries[q.id].because}</p>
+                    <p>
+                      <b>전체 사건과 이어지는 이유</b>
+                      {caseThreads[e.id - 1].inquiries[q.id].leadsTo}
+                    </p>
                   </div>
                   <div className="question-guidance">
                     <p>{investigationGuides[e.id - 1].tips[q.id]}</p>
@@ -900,24 +924,41 @@ export default function Game() {
                 </section>
               );
             })}
+            {discoveredQuestions.length < e.questions.length && (
+              <div className="remaining-inquiries">
+                <p>
+                  다른 기록을 읽으면 지금의 추리를 이어 갈 새로운 의문이
+                  나타납니다.
+                </p>
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    setSelected(null);
+                    goTab("board");
+                  }}
+                >
+                  게시판에서 기록 계속 읽기 ↗
+                </button>
+              </div>
+            )}
             <div className="submit-row">
               <p>
-                답과 근거 준비{" "}
+                현재 추리와 근거 준비{" "}
                 {
-                  e.questions.filter((q) => {
+                  discoveredQuestions.filter((q) => {
                     const s = questionPreparation(e, q, p, feedback);
                     return s.confirmed || (s.ready && !s.needsReview);
                   }).length
                 }
-                /3 <span>·</span> 시도 횟수 제한 없음 <span>·</span>{" "}
-                {p.attempts[e.id] ?? 0}회 검토
+                /{discoveredQuestions.length} <span>·</span> 시도 횟수 제한 없음{" "}
+                <span>·</span> {p.attempts[e.id] ?? 0}회 검토
               </p>
               <button
                 className="primary"
                 onClick={solve}
-                disabled={pending > 0}
+                disabled={pending > 0 || !discoveredQuestions.length}
               >
-                세 가설 검증하기 <span>→</span>
+                내 추리 검증하기 <span>→</span>
               </button>
             </div>
           </Dialog>
@@ -1006,6 +1047,36 @@ export default function Game() {
                     </div>
                   </div>
                 ))}
+              </section>
+            )}
+            {e.questions.some((q) =>
+              caseThreads[e.id - 1].inquiries[q.id].discoveredBy.includes(
+                selected.id,
+              ),
+            ) && (
+              <section className="record-inquiries">
+                <h3>이 기록을 읽고 생긴 의문</h3>
+                {e.questions
+                  .filter((q) =>
+                    caseThreads[e.id - 1].inquiries[q.id].discoveredBy.includes(
+                      selected.id,
+                    ),
+                  )
+                  .map((q) => (
+                    <div key={q.id}>
+                      <strong>
+                        {caseThreads[e.id - 1].inquiries[q.id].title}
+                      </strong>
+                      <p>{caseThreads[e.id - 1].inquiries[q.id].because}</p>
+                      <button
+                        className="text-button"
+                        disabled={pending > 0}
+                        onClick={() => openQuestion(q.id)}
+                      >
+                        이 의문을 추리 노트에 정리 ↗
+                      </button>
+                    </div>
+                  ))}
               </section>
             )}
             <div className="post-reactions">

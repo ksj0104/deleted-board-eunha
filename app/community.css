@@ -1,4 +1,167 @@
 /* Resident community and investigation windows */
+.main-case-thread {
+  padding-bottom: 16px;
+  margin-bottom: 19px;
+  border-bottom: 1px solid #516247;
+}
+.main-case-thread > span {
+  font-size: 10px;
+  letter-spacing: 0.7px;
+  color: #d6b18b;
+}
+.main-case-thread > p {
+  font: 500 15px/1.8 var(--serif);
+  color: #ece4cc;
+  margin: 5px 0 0;
+}
+.investigation-guide .goal-list {
+  grid-template-columns: 1fr;
+}
+.investigation-guide .goal-list > li {
+  display: block;
+  padding: 17px 19px;
+}
+.investigation-guide .goal-list strong {
+  font-size: 15px;
+}
+.investigation-guide .goal-list .inquiry-cause {
+  font-size: 12px;
+  line-height: 1.95;
+  margin-bottom: 9px;
+}
+.investigation-guide .goal-list .inquiry-purpose {
+  padding-left: 11px;
+  border-left: 2px solid #a4ae76;
+  color: #d1d8bb;
+  font-size: 12px;
+}
+.inquiry-purpose b {
+  display: block;
+  color: #e5ba8f;
+  font-size: 10px;
+  margin-bottom: 3px;
+}
+.inquiry-observation {
+  font-size: 11px;
+  color: #b9c8a7;
+  margin: 10px 0 14px;
+}
+.inquiry-observation summary {
+  cursor: pointer;
+  color: #d7cbaa;
+  width: fit-content;
+}
+.inquiry-observation p {
+  padding-left: 12px;
+}
+.undiscovered-inquiries {
+  margin: 0;
+  padding: 17px;
+  font-size: 13px;
+  line-height: 1.95;
+  color: #d5dac3;
+  background: #243c2e;
+  border-left: 2px solid #b9a06e;
+}
+.story-main-question {
+  display: block;
+  font: 500 19px/1.8 var(--serif);
+  color: #f1dfc5;
+  margin-bottom: 12px;
+}
+.story-mission .story-entry-reason {
+  font-size: 12px;
+  color: #bfccb1;
+  line-height: 1.9;
+  margin-bottom: 0;
+}
+.deduction-motivation {
+  padding: 17px 19px;
+  margin: 0 0 20px;
+  background: #263c2c;
+  border: 1px solid #4a6043;
+  border-radius: 4px;
+}
+.deduction-motivation > strong {
+  font-size: 14px;
+  color: #f1dec1;
+}
+.deduction-motivation p {
+  color: #c4d0b1;
+  font-size: 12px;
+  line-height: 1.95;
+  margin: 9px 0 0;
+}
+.deduction-motivation b {
+  display: block;
+  font-size: 10px;
+  color: #dcb488;
+  margin-top: 12px;
+}
+.notebook-start,
+.remaining-inquiries {
+  background: #263a2e;
+  padding: 19px;
+  margin: 20px 0;
+  border: 1px solid #486044;
+  color: #c5d0b6;
+}
+.notebook-start h3 {
+  font-size: 16px;
+  color: #eee1c8;
+}
+.notebook-start p,
+.remaining-inquiries p {
+  font-size: 12px;
+  line-height: 1.9;
+}
+.record-inquiries {
+  border-top: 1px solid #536044;
+  padding-top: 22px;
+  margin: 25px 0;
+}
+.record-inquiries h3 {
+  font-size: 11px;
+  color: #e0b487;
+  margin-bottom: 14px;
+}
+.record-inquiries > div {
+  padding: 15px 17px;
+  background: #263b2d;
+  border-left: 2px solid #9dac76;
+  margin: 10px 0;
+}
+.record-inquiries strong {
+  font-size: 13px;
+  color: #e9e0c5;
+}
+.record-inquiries p {
+  font-size: 12px;
+  line-height: 1.9;
+  color: #bfcdae;
+  margin: 7px 0;
+}
+.record-inquiries button {
+  font-size: 11px;
+}
+@media (max-width: 600px) {
+  .investigation-guide .goal-list > li {
+    padding: 14px;
+  }
+  .investigation-guide .goal-list strong {
+    font-size: 14px;
+  }
+  .story-main-question {
+    font-size: 17px;
+  }
+  .main-case-thread > p {
+    font-size: 13px;
+  }
+  .undiscovered-inquiries {
+    padding: 14px;
+    font-size: 12px;
+  }
+}
 .investigation-guide {
   background: #1c3027;
   border: 1px solid #536c52;
