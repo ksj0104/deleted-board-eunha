@@ -31,7 +31,7 @@ export default function StoryPrologue({
       <div className="story-prologue">
         <figure className="story-scene">
           <img
-            src={`/story/${String(episode.id).padStart(2, "0")}.webp`}
+            src={`story/${String(episode.id).padStart(2, "0")}.webp`}
             alt={story.imageAlt}
             width="1536"
             height="1024"

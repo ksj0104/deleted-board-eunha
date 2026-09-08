@@ -197,7 +197,7 @@ for (const path of [
   ...Object.values(communityImages).map((a) => a.src),
   ...episodes.map((e) => `/story/${String(e.id).padStart(2, "0")}.webp`),
 ]) {
-  const img = await fetch(base + path);
+  const img = await fetch(`${base}/${path.replace(/^\//, "")}`);
   assert.equal(img.status, 200, path);
   assert.match(img.headers.get("content-type") ?? "", /image\/webp/);
   assert.ok((await img.arrayBuffer()).byteLength > 10000, path);

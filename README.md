@@ -4,25 +4,28 @@
 
 8화 완결 캠페인 · 기록 212개(공개 글 180개 + 비공개 자료 32개, 일상 글 164개 포함) · 이미지 프롤로그 8개 · 추리 문제 24개 · 두 가지 결말.
 
+**[바로 플레이하기](https://ksj0104.github.io/deleted-board-eunha/)** · 로그인이나 API 키 없이 플레이하며, 진행은 각 플레이어의 브라우저에 자동 저장됩니다.
+
 ## 실행
 
 Node.js 22.13 이상이 필요합니다. Windows PowerShell에서도 같은 명령으로 실행합니다.
 
 ```sh
 npm ci
-npm run dev
+npm run dev:pages
 ```
 
-개발 서버가 출력하는 주소(기본 http://localhost:3000)를 엽니다. 개발용 D1 데이터베이스는 프로젝트의 `.wrangler` 아래에 저장되며 최초 접속 시 테이블을 생성합니다. 별도의 AI API 키나 유료 외부 API가 필요하지 않습니다.
+개발 서버가 출력하는 주소를 엽니다. GitHub Pages와 같은 브라우저 저장 방식으로 실행하며 별도 서버, 데이터베이스, AI API 키가 필요하지 않습니다.
 
 ```sh
 npm test             # 전체 캠페인 엔진 + React 화면 상호작용 검증
 npm run typecheck    # TypeScript 검사
-npm run test:http    # 실행 중인 로컬 서버에서 전체 캠페인과 실제 저장소 검증
-npm run build        # Cloudflare Worker 배포 빌드
+npm run build:pages  # GitHub Pages 정적 빌드 → dist-pages
+npm run test:pages   # 하위 주소의 파일 제공, 실제 번들 실행과 저장 복원 검증
+npm run preview:pages # 정적 빌드 미리 보기
 ```
 
-`GAME_TEST_URL`을 지정하면 HTTP 검증 대상을 바꿀 수 있습니다. HTTP 검증은 별도의 새 익명 세션을 만들고 그 세션만 초기화합니다. 사용자의 게임 진행에는 접근하지 않습니다.
+기존 Cloudflare Worker 방식도 `npm run dev` / `npm run build`로 실행할 수 있습니다. 해당 방식의 `npm run test:http`는 별도 익명 세션으로 D1 저장을 검증하며, `GAME_TEST_URL`로 대상을 지정합니다.
 
 ## 플레이
 
@@ -54,9 +57,11 @@ npm run build        # Cloudflare Worker 배포 빌드
 
 ## 저장과 개인정보
 
-진행, 수집 증거, 읽음, 답안, 메모, 힌트, 결말은 D1에 저장합니다. 임의 UUID를 담은 HttpOnly / SameSite=Lax 쿠키가 익명 세션을 식별하며 HTTPS에서는 Secure를 설정합니다. 쿠키를 삭제하거나 다른 브라우저를 사용하면 새로운 게임으로 시작합니다. 계정 간 동기화 기능은 없습니다. 메모에는 개인 비밀정보를 쓰지 않는 편이 좋습니다.
+GitHub Pages에서는 진행, 수집 증거, 읽음, 공감, 프롤로그 열람, 답안, 메모, 힌트와 결말을 브라우저의 `localStorage`에 저장합니다. 키는 `eunha.deleted-board.progress.v1`이며, 같은 GitHub 계정의 다른 프로젝트 데이터와 구분됩니다. 새로고침하거나 창을 닫아도 같은 주소·브라우저·프로필로 돌아오면 이어서 플레이합니다. 사이트 데이터를 삭제하거나 다른 기기·브라우저로 접속하면 새 게임으로 시작합니다. 시크릿 모드의 기록은 해당 세션이 끝나면 사라지며 계정 동기화는 없습니다.
 
-저장 변경은 서버에서 검증하며 수정 버전을 비교해 동시 요청의 덮어쓰기를 막습니다. 정답·해설·결말 판정 모듈은 클라이언트 코드에서 실행하지 않습니다. 이 게임은 경쟁 또는 비밀 보호를 위한 시스템이 아니며 정적 콘텐츠를 의도적으로 분석하는 플레이어를 막지는 않습니다.
+추리 판정과 저장은 브라우저 안에서 처리하며 게임 API를 호출하지 않습니다. Chrome에서는 Web Locks로 여러 탭의 저장을 순서대로 처리하고 매 요청마다 최신 기록을 읽습니다. 저장 공간 부족·저장 차단·손상된 기록은 오류로 안내하고 기존 기록을 임의로 초기화하지 않습니다. **처음부터 다시 시작**은 이 게임의 기록만 초기화합니다.
+
+Pages 공개 소스와 정적 파일에는 정답 판정도 포함됩니다. 경쟁이나 정답 비밀 유지를 위한 시스템은 아닙니다. 기존 Sites/Worker 주소의 D1 진행은 출처와 저장 방식이 달라 Pages 주소로 자동 이전되지 않습니다. Worker 방식은 기존 익명 세션 쿠키와 D1 저장을 계속 사용합니다.
 
 ## 구조
 
@@ -67,9 +72,11 @@ npm run build        # Cloudflare Worker 배포 빌드
 - `lib/narrative.ts`, `app/InvestigationGuide.tsx`: 중심 사건, 조사 사이의 인과관계, 기록 열람에 따른 의문 발견
 - `lib/world.ts`, `app/InvestigationInbox.tsx`: 누적되는 공개 게시판, 게임 속 시각, 출처별 회신과 비공개 첨부 접근
 - `app/CommunityBoard.tsx`, `app/StoryPrologue.tsx`, `app/community.css`: 주민 게시판, 이미지 프롤로그, 모달 UI
-- `lib/solutions.ts`: 서버 정답·근거·해설·결말
+- `lib/solutions.ts`: 정답·근거·해설·결말
 - `lib/game.ts`: 순차 해금, 정답·근거 검증, 상태 전이
 - `app/Game.tsx`, `app/components.tsx`: 게임 화면과 상호작용
+- `lib/game-client.ts`, `lib/local-game-client.ts`: 서버/브라우저 저장 선택, 로컬 저장 검증과 복원
+- `static/`, `vite.pages.config.ts`, `.github/workflows/pages.yml`: GitHub Pages 진입점, 정적 빌드와 자동 배포
 - `app/EvidencePicker.tsx`: 검색·출처 필터·페이지·선택 요약·키보드 해제를 갖춘 근거 선택
 - `app/api/game/route.ts`, `db/store.ts`: 세션·요청 검증·D1 저장
 - `db/schema.ts`, `drizzle/`: 데이터베이스 스키마와 배포 마이그레이션
@@ -82,4 +89,6 @@ npm run build        # Cloudflare Worker 배포 빌드
 
 ## 배포
 
-Sites의 vinext / Cloudflare Worker 구조를 유지합니다. `.openai/hosting.json`의 논리적 `DB` 바인딩에 실제 D1을 연결하고 `drizzle` 마이그레이션을 적용합니다. 배포 산출물은 `dist/server/index.js`, `dist/client`, `dist/.openai`입니다. 원본 프로젝트의 `main.py`와 IDE·Python 가상환경은 보존했으며 웹 게임에는 사용하지 않습니다.
+GitHub 저장소의 **Settings → Pages → Source**를 **GitHub Actions**로 설정합니다. `main`에 푸시하면 `.github/workflows/pages.yml`이 검사와 테스트를 수행한 뒤 `dist-pages`를 배포합니다. 이후 같은 저장소에 푸시하면 공개 게임도 자동 갱신됩니다. 상대 자산 경로를 사용하므로 프로젝트 하위 주소에서도 이미지와 CSS/JS를 불러옵니다. 공유 링크 메타데이터는 `GITHUB_REPOSITORY`에서 생성합니다.
+
+기존 Sites의 vinext / Cloudflare Worker 빌드도 유지합니다. 해당 배포는 `.openai/hosting.json`의 논리적 `DB` 바인딩과 D1 마이그레이션을 사용하고, 산출물은 `dist/server/index.js`, `dist/client`, `dist/.openai`입니다. 원본 프로젝트의 `main.py`와 IDE·Python 가상환경은 웹 게임에 사용하지 않습니다.

@@ -5,32 +5,32 @@ import { communityNeighborhood } from "./community-neighborhood";
 
 export const communityImages = {
   courtyard: {
-    src: "/community/courtyard.webp",
+    src: "community/courtyard.webp",
     alt: "해 질 무렵 산책로와 불 켜진 창문이 보이는 은하아파트 단지",
     caption: "집으로 돌아오는 길 · 은하아파트 주민 사진첩",
   },
   cat: {
-    src: "/community/cat.webp",
+    src: "community/cat.webp",
     alt: "세탁소 앞 초록 의자에 앉은 빨간 목줄의 노란 고양이 단추",
     caption: "단추의 지정석. 앉기 전에 고양이가 있는지 확인해 주세요.",
   },
   pancakes: {
-    src: "/community/pancakes.webp",
+    src: "community/pancakes.webp",
     alt: "집 식탁에 놓인 노릇한 파전과 작은 간장 종지",
     caption: "가장자리는 바삭하게, 가운데는 촉촉하게.",
   },
   chair: {
-    src: "/community/chair.webp",
+    src: "community/chair.webp",
     alt: "화분 옆에 놓인 사용감 있는 나무 접이식 의자와 크림색 방석",
     caption: "의자 한 개와 방석입니다. 접으면 현관 옆에 세워둘 수 있어요.",
   },
   flowers: {
-    src: "/community/flowers.webp",
+    src: "community/flowers.webp",
     alt: "아파트 산책로의 가지 끝에서 피기 시작한 하얀 목련",
     caption: "꽃이 하나둘 열리기 시작했어요. 사진으로 함께 봐요.",
   },
   books: {
-    src: "/community/books.webp",
+    src: "community/books.webp",
     alt: "햇빛이 드는 주민 도서 교환방의 낮은 책장과 작은 화분",
     caption: "읽은 책이 다음 이웃에게 가는 자리.",
   },

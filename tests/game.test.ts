@@ -247,7 +247,11 @@ test("the complete campaign has 8 stories, 48 core records, 164 community posts,
     for (const r of neighbors) {
       assert.ok(Array.isArray(r.comments));
       assert.ok(r.date.slice(0, 5) <= ep.date);
-      if (r.photo) assert.ok(existsSync("public" + r.photo.src), r.photo.src);
+      if (r.photo)
+        assert.ok(
+          existsSync("public/" + r.photo.src.replace(/^\//, "")),
+          r.photo.src,
+        );
     }
     assert.ok(episodeStories[ep.id - 1].paragraphs.join("").length > 180);
     assert.ok(

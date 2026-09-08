@@ -13,6 +13,10 @@ import { walkthrough } from "./walkthrough";
 import { caseThreads, mainCase } from "../lib/narrative";
 import { communityRecords, deliveries, isPublicRecord } from "../lib/world";
 import Game from "../app/Game";
+import {
+  createLocalGameClient,
+  LOCAL_SAVE_KEY,
+} from "../lib/local-game-client";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
   url: "http://localhost:3000",
@@ -39,6 +43,79 @@ const { render, screen, within, waitFor, cleanup, fireEvent, act } =
   await import("@testing-library/react");
 const { default: userEvent } = await import("@testing-library/user-event");
 afterEach(() => cleanup());
+
+test("UI: GitHub Pages play saves evidence, answers and notes in browser storage and restores without API calls", async () => {
+  dom.window.localStorage.removeItem(LOCAL_SAVE_KEY);
+  const previousFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = (async () => {
+    requests++;
+    throw new Error("No server on GitHub Pages");
+  }) as typeof fetch;
+  try {
+    const client = createLocalGameClient(() => dom.window.localStorage);
+    await client.request({ type: "start" });
+    const user = userEvent.setup({ document: dom.window.document });
+    const first = render(<Game client={client} />);
+    await screen.findByRole("heading", { name: "은하아파트 주민마당" });
+    const record = recordById("1-2")!;
+    await openSourceRecord(user, record);
+    const post = screen.getByRole("dialog", { name: record.title });
+    await user.click(within(post).getByRole("button", { name: /증거 수집/ }));
+    await user.click(within(post).getByRole("button", { name: "닫기" }));
+    await user.click(screen.getByRole("button", { name: "추리 노트" }));
+    const card = document.getElementById("question-1-alias")!;
+    await user.click(within(card).getByRole("radio", { name: /계단참/ }));
+    await openEvidencePicker(user, card);
+    await user.click(within(card).getByRole("checkbox", { name: /1-2/ }));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "추리 노트" })).getByRole(
+        "button",
+        { name: "닫기" },
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "나의 메모" }));
+    fireEvent.change(document.getElementById("notebook")!, {
+      target: { value: "작성자 번호를 다시 대조하자" },
+    });
+    await waitFor(() =>
+      assert.match(
+        dom.window.localStorage.getItem(LOCAL_SAVE_KEY)!,
+        /작성자 번호를 다시 대조하자/,
+      ),
+    );
+    first.unmount();
+
+    const reopened = createLocalGameClient(() => dom.window.localStorage);
+    render(<Game client={reopened} />);
+    await screen.findByRole("heading", { name: "은하아파트 주민마당" });
+    await user.click(screen.getByRole("button", { name: "추리 노트" }));
+    const restored = document.getElementById("question-1-alias")!;
+    assert.ok(
+      within(restored).getByRole("radio", { name: /계단참/, checked: true }),
+    );
+    assert.equal(
+      within(restored).getAllByRole("button", { name: /근거 연결 해제/ })
+        .length,
+      1,
+    );
+    await user.click(
+      within(screen.getByRole("dialog", { name: "추리 노트" })).getByRole(
+        "button",
+        { name: "닫기" },
+      ),
+    );
+    await user.click(screen.getByRole("button", { name: "나의 메모" }));
+    assert.ok(screen.getByDisplayValue("작성자 번호를 다시 대조하자"));
+    const saved = await reopened.request();
+    assert.ok(saved.progress.read.includes("1-2"));
+    assert.ok(saved.progress.pinned.includes("1-2"));
+    assert.equal(requests, 0);
+  } finally {
+    globalThis.fetch = previousFetch;
+    dom.window.localStorage.removeItem(LOCAL_SAVE_KEY);
+  }
+});
 
 async function openEvidencePicker(
   user: ReturnType<typeof userEvent.setup>,

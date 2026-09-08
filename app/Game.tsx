@@ -6,7 +6,12 @@ import {
   type Question,
   type RecordFile,
 } from "../lib/cases";
-import type { Progress, Draft, Action, Feedback } from "../lib/game";
+import type { Draft, Action, Feedback } from "../lib/game";
+import {
+  apiGameClient,
+  type GameClient,
+  type GameView as View,
+} from "../lib/game-client";
 import {
   Dialog,
   Search,
@@ -34,13 +39,6 @@ import {
   worldDate,
   worldStage,
 } from "../lib/world";
-type Resolution = { title: string; text: string; next: string };
-type View = {
-  progress: Progress;
-  resolutions: Record<string, Resolution>;
-  ending: { title: string; label: string; text: string; after: string } | null;
-  feedback?: Feedback;
-};
 type DraftEdit = {
   episode: number;
   question: string;
@@ -60,7 +58,11 @@ const tabs: { id: Tab; label: string; glyph: string }[] = [
 ];
 const pad = (n: number) => String(n).padStart(2, "0");
 
-export default function Game() {
+export default function Game({
+  client = apiGameClient,
+}: {
+  client?: GameClient;
+}) {
   const [view, setView] = useState<View | null>(null);
   const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
@@ -102,9 +104,8 @@ export default function Game() {
   );
   const load = useCallback(async () => {
     try {
-      const r = await fetch("/api/game", { cache: "no-store" });
-      const data = (await r.json()) as View & { error?: string };
-      if (!r.ok) throw new Error(data.error);
+      const data = await client.request();
+      setLoadError("");
       savedView.current = data;
       setView(data);
       setNotes(data.progress.notes);
@@ -113,9 +114,9 @@ export default function Game() {
         e instanceof Error ? e.message : "기록을 불러오지 못했습니다.",
       );
     }
-  }, []);
+  }, [client]);
   useEffect(() => {
-    // load updates state after the network promise resolves or rejects.
+    // load updates state after the storage promise resolves or rejects.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
@@ -158,13 +159,7 @@ export default function Game() {
                   },
                 }
               : action;
-            const r = await fetch("/api/game", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(requestAction),
-            });
-            const data = (await r.json()) as View & { error?: string };
-            if (!r.ok) throw new Error(data.error);
+            const data = await client.request(requestAction);
             savedView.current = data;
             setView(data);
             if (action.type === "reset") updateDraftEdits(() => ({}));
@@ -197,7 +192,7 @@ export default function Game() {
       queue.current = job;
       return job;
     },
-    [updateDraftEdits],
+    [client, updateDraftEdits],
   );
   const persistDraft = (episode: number, question: string, draft: Draft) => {
     const edit: DraftEdit = {
@@ -298,12 +293,12 @@ export default function Game() {
               void load();
             }}
           >
-            다시 연결하기
+            {client.storage === "browser" ? "다시 불러오기" : "다시 연결하기"}
           </button>
         )}
       </div>
     );
-  // Server responses remain authoritative; outstanding local edits are overlaid
+  // Saved state remains authoritative; outstanding local edits are overlaid
   // so an older response cannot undo a newer checkbox or answer change.
   const p = {
     ...view.progress,
@@ -627,7 +622,8 @@ export default function Game() {
                     setNoteDirty(true);
                     if (noteTimer.current) clearTimeout(noteTimer.current);
                     notePending.current = { episode: e.id, text };
-                    noteTimer.current = setTimeout(flushNote, 700);
+                    if (client.storage === "browser") flushNote();
+                    else noteTimer.current = setTimeout(flushNote, 700);
                   }}
                 />
                 <footer>
@@ -716,9 +712,10 @@ export default function Game() {
                   </button>
                 </div>
                 <p className="privacy-note">
-                  진행은 현재 브라우저의 익명 기록으로 서버에 저장됩니다. 쿠키를
-                  지우면 기존 기록에 다시 연결할 수 없습니다. 이 게임의 인물과
-                  사건은 모두 허구입니다.
+                  {client.storage === "browser"
+                    ? "진행은 이 브라우저에 자동 저장됩니다. 같은 주소에서 이어서 플레이할 수 있으며, 사이트 데이터를 삭제하면 기록도 사라집니다. "
+                    : "진행은 현재 브라우저의 익명 기록으로 서버에 저장됩니다. 쿠키를 지우면 기존 기록에 다시 연결할 수 없습니다. "}
+                  이 게임의 인물과 사건은 모두 허구입니다.
                 </p>
               </>
             )}
@@ -1334,8 +1331,9 @@ export default function Game() {
                 없습니다.
               </p>
               <p>
-                메모와 진행은 익명 세션으로 서버에 자동 저장됩니다. 쿠키 삭제나
-                다른 브라우저로 접속하면 새 게임이 시작됩니다.
+                {client.storage === "browser"
+                  ? "메모와 진행은 이 브라우저에 자동 저장됩니다. 새로고침하거나 창을 닫아도 같은 주소에서 이어서 플레이할 수 있습니다. 사이트 데이터를 삭제하거나 다른 기기·브라우저를 사용하면 새 게임이 시작됩니다."
+                  : "메모와 진행은 익명 세션으로 서버에 자동 저장됩니다. 쿠키 삭제나 다른 브라우저로 접속하면 새 게임이 시작됩니다."}
               </p>
               <p>
                 모든 사건을 해결하면 공개 범위에 따른{" "}
