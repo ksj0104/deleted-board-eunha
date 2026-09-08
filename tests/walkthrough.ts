@@ -1,5 +1,137 @@
 // Independently recorded editorial walkthrough; do not generate this from the answer key.
 export const cctvAlignment = -7;
+// Editorial placements from the source documents; independent of desk.accepts.
+export const investigationWalkthrough: Record<
+  number,
+  {
+    id: string;
+    sources: string[];
+    placements: Record<string, string>;
+    extra?: string[];
+  }
+> = {
+  1: {
+    id: "profiles",
+    sources: ["1-1", "1-2", "1-3", "1-4", "1-5"],
+    placements: {
+      "identity-a": "old-id",
+      "identity-b": "new-id",
+      "claim-a": "notice",
+      "claim-b": "resident",
+      "appointment-a": "invite",
+      "appointment-b": "cancel",
+    },
+  },
+  3: {
+    id: "payments",
+    sources: ["3-1", "3-2", "3-3", "3-4"],
+    placements: {
+      published: "ledger-total",
+      invoice: "invoice-total",
+      "paid-work": "transfer-a",
+      "paid-other": "transfer-b",
+      recipient: "owner",
+      approval: "signature",
+    },
+  },
+  4: {
+    id: "route",
+    sources: ["4-1", "4-2", "4-3", "4-4"],
+    placements: {
+      management: "r01",
+      courtyard: "r02",
+      tunnel: "r07",
+      archive: "r09",
+      closure: "works",
+      door: "exit",
+    },
+    extra: ["door-tested"],
+  },
+  5: {
+    id: "index",
+    sources: ["5-1", "5-2", "5-3", "5-4", "5-5"],
+    placements: {
+      "piece-1": "c",
+      "piece-2": "a",
+      "piece-3": "d",
+      "piece-4": "b",
+      seal: "e42",
+    },
+  },
+  6: {
+    id: "revisions",
+    sources: ["6-1", "6-2", "6-3", "6-4", "6-5"],
+    placements: {
+      revision: "replace",
+      operator: "m01",
+      "delete-a": "history",
+      "delete-b": "accounts",
+      "keep-a": "photos",
+      "keep-b": "posts",
+      decision: "vote",
+    },
+  },
+  7: {
+    id: "sources",
+    sources: ["6-3", "7-1", "7-2", "7-3", "7-4", "7-5"],
+    placements: {
+      mail: "auth",
+      identity: "sender",
+      "current-witness": "today",
+      "current-self": "self",
+      entry: "entry",
+      instruction: "request",
+      response: "refusal",
+    },
+  },
+  8: {
+    id: "report",
+    sources: [
+      "8-1",
+      "8-2",
+      "8-3",
+      "8-4",
+      "8-5",
+      "3-1",
+      "3-4",
+      "6-1",
+      "6-3",
+      "2-4",
+      "7-2",
+    ],
+    placements: {
+      "fact-1": "money",
+      "fact-2": "preserved",
+      "fact-3": "deletion",
+      "open-1": "liability",
+      "open-2": "breaker",
+      "private-1": "contact",
+      "private-2": "address",
+    },
+  },
+};
+export function investigationAction(episode: number) {
+  const route = investigationWalkthrough[episode];
+  return {
+    type: "confirm-investigation",
+    episode,
+    investigation: route.id,
+    investigationState: {
+      placements: { ...route.placements },
+      inspected: [...Object.values(route.placements), ...(route.extra ?? [])],
+      confirmed: false,
+    },
+  };
+}
+export function investigationActions(episode: number) {
+  const route = investigationWalkthrough[episode];
+  return route
+    ? [
+        ...route.sources.map((record) => ({ type: "read", record, episode })),
+        investigationAction(episode),
+      ]
+    : [];
+}
 export const restoredPaperOrder = [
   "cedar",
   "reed",

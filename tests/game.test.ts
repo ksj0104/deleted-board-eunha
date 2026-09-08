@@ -9,6 +9,7 @@ import {
   unlocked,
 } from "../lib/game";
 import { walkthrough, restoredPaperOrder, cctvAlignment } from "./walkthrough";
+import { investigationActions } from "./walkthrough";
 import { communityPosts } from "../lib/community";
 import { episodeStories } from "../lib/stories";
 import { existsSync } from "node:fs";
@@ -18,7 +19,7 @@ import {
   investigationGuides,
   questionPreparation,
 } from "../lib/investigation";
-import { caseThreads, inquiryDiscovered } from "../lib/narrative";
+import { inquiryDiscovered } from "../lib/narrative";
 import {
   canReadRecord,
   communityRecords,
@@ -99,57 +100,69 @@ test("the community is a persistent dated world; private sources arrive separate
   assert.equal(new Set([...previous, ...privateIds]).size, allRecords.length);
 });
 
-test("inquiries emerge from relevant records, preserve existing drafts and remain reachable throughout the campaign", () => {
+test("questions appear only when the collection contains sufficient facts, including alternative sources and legacy answers", () => {
   const ep = episodes[0];
   const visible = (p: ReturnType<typeof freshProgress>) =>
     ep.questions.filter((q) => inquiryDiscovered(ep, q, p)).map((q) => q.id);
-  let p = applyAction(freshProgress(), { type: "start" }).progress;
+  let p = applyAction(freshProgress(), {
+    type: "read",
+    record: "1-2",
+  }).progress;
+  p = applyAction(p, { type: "read", record: "1-3" }).progress;
+  assert.deepEqual(visible(p), [], "reading is not collecting");
+  p = applyAction(p, { type: "pin", record: "1-2" }).progress;
   assert.deepEqual(visible(p), []);
-  p = applyAction(p, { type: "read", record: "1-7" }).progress;
+  p = applyAction(p, { type: "pin", record: "1-7" }).progress;
   assert.deepEqual(
     visible(p),
     [],
-    "everyday posts do not invent case questions",
+    "two unrelated documents cannot unlock a question",
   );
-  p = applyAction(p, { type: "read", record: "1-1" }).progress;
-  assert.deepEqual(visible(p), ["status"]);
-  p = applyAction(p, { type: "read", record: "1-2" }).progress;
-  assert.deepEqual(visible(p), ["alias", "status"]);
-  p = applyAction(p, { type: "read", record: "1-5" }).progress;
-  assert.deepEqual(visible(p), ["alias", "status", "meeting"]);
-  const legacy = freshProgress();
-  legacy.drafts[1] = { meeting: { answer: "302호", evidence: [] } };
-  assert.deepEqual(visible(legacy), ["meeting"], "old work is never hidden");
-  legacy.solved = [1];
-  assert.equal(visible(legacy).length, 3);
-
-  assert.equal(caseThreads.length, episodes.length);
+  p = applyAction(p, { type: "pin", record: "1-3" }).progress;
+  assert.deepEqual(visible(p), ["alias"]);
+  p = applyAction(p, {
+    type: "draft",
+    question: "alias",
+    draft: { answer: "계단참", evidence: [] },
+  }).progress;
+  p = applyAction(p, { type: "pin", record: "1-2" }).progress;
+  assert.deepEqual(
+    visible(p),
+    [],
+    "uncollected source hides the unsolved question",
+  );
+  assert.equal(
+    p.drafts[1].alias.answer,
+    "계단참",
+    "hidden answers are retained",
+  );
+  p = applyAction(p, { type: "pin", record: "1-2" }).progress;
+  assert.deepEqual(visible(p), ["alias"]);
+  assert.equal(p.drafts[1].alias.answer, "계단참");
   for (const episode of episodes) {
-    const thread = caseThreads[episode.id - 1];
-    assert.deepEqual(
-      Object.keys(thread.inquiries).sort(),
-      episode.questions.map((q) => q.id).sort(),
-    );
-    const untouched = freshProgress();
-    const readAll = { ...untouched, read: episode.records.map((r) => r.id) };
     for (const q of episode.questions) {
-      const inquiry = thread.inquiries[q.id];
-      assert.ok(inquiry.because && inquiry.leadsTo);
-      assert.ok(inquiry.discoveredBy.length);
-      for (const id of inquiry.discoveredBy) {
-        assert.ok(
-          episode.records.some((r) => r.id === id),
-          `${episode.id}/${q.id}: ${id}`,
-        );
-        assert.equal(
-          inquiryDiscovered(episode, q, { ...untouched, read: [id] }),
-          !recordById(id)?.shredded,
-        );
-      }
-      assert.equal(inquiryDiscovered(episode, q, untouched), false);
-      assert.equal(inquiryDiscovered(episode, q, readAll), true);
+      const ids = walkthrough[episode.id - 1][q.id][1];
+      assert.equal(
+        inquiryDiscovered(episode, q, { ...freshProgress(), pinned: ids }),
+        true,
+        `${episode.id}/${q.id}`,
+      );
+      assert.equal(
+        inquiryDiscovered(episode, q, { ...freshProgress(), read: ids }),
+        false,
+      );
     }
   }
+  const legacy = {
+    ...freshProgress(),
+    solved: [1],
+    drafts: { 1: { meeting: { answer: "302호", evidence: [] } } },
+  };
+  assert.equal(
+    visible(legacy).length,
+    3,
+    "completed legacy episodes stay visible",
+  );
 });
 
 test("investigation guidance covers all questions and distinguishes prepared answers from verified conclusions", () => {
@@ -171,7 +184,7 @@ test("investigation guidance covers all questions and distinguishes prepared ans
     question: q.id,
     draft: { answer: walkthrough[0].alias[0], evidence: [] },
   }).progress;
-  assert.equal(questionPreparation(ep, q, p).label, "근거 선택하기");
+  assert.equal(questionPreparation(ep, q, p).label, "단서 더 수집하기");
   for (const id of ["1-2", "1-3"])
     p = applyAction(p, { type: "pin", record: id }).progress;
   p = applyAction(p, {
@@ -179,13 +192,16 @@ test("investigation guidance covers all questions and distinguishes prepared ans
     question: q.id,
     draft: { answer: walkthrough[0].alias[0], evidence: ["1-2", "1-3"] },
   }).progress;
+  assert.equal(questionPreparation(ep, q, p).label, "직접 조사하기");
+  for (const action of investigationActions(1))
+    p = applyAction(p, action).progress;
   const prepared = questionPreparation(ep, q, p);
   assert.equal(prepared.ready, true);
   assert.equal(prepared.confirmed, false);
   const wrong = questionPreparation(ep, q, p, {
     alias: { answer: true, evidence: false },
   });
-  assert.equal(wrong.label, "근거 다시 검토");
+  assert.equal(wrong.label, "조사 다시 검토");
   assert.equal(wrong.needsReview, true);
   assert.equal(
     questionPreparation(ep, q, p, { alias: { answer: true, evidence: true } })
@@ -194,7 +210,7 @@ test("investigation guidance covers all questions and distinguishes prepared ans
   );
   p = applyAction(p, { type: "pin", record: "1-2" }).progress;
   assert.equal(questionPreparation(ep, q, p).ready, false);
-  assert.equal(questionPreparation(ep, q, p).evidenceCount, 1);
+  assert.equal(questionPreparation(ep, q, p).evidenceCount, 0);
 });
 
 test("legacy saves gain prologue history and reactions without losing progress; everyday posts obey locks and cannot replace proof", () => {
@@ -314,6 +330,8 @@ test("full campaign: mistakes, complete supporting evidence, hints, reopen, pers
     }
     if (ep.id === 2)
       p = applyAction(p, { type: "calibrate", offset: cctvAlignment }).progress;
+    for (const action of investigationActions(ep.id))
+      p = applyAction(p, action).progress;
     for (const [question, [answer, evidence]] of Object.entries(
       walkthrough[ep.id - 1],
     )) {
@@ -772,6 +790,8 @@ test("alternative and corroborating proofs remain valid through draft validation
     }
     if (ep === 2 && id !== "claim")
       p = applyAction(p, { type: "calibrate", offset: cctvAlignment }).progress;
+    for (const action of investigationActions(ep))
+      p = applyAction(p, action).progress;
     p = applyAction(p, {
       type: "draft",
       question: id,
@@ -853,15 +873,28 @@ test("version-one solved episodes and old incomplete drafts survive the stronger
   const preparation = questionPreparation(episodes[7], final, restored);
   assert.equal(preparation.answered, true);
   assert.equal(preparation.ready, false);
-  assert.equal(preparation.evidenceCount, 1);
+  assert.equal(preparation.evidenceCount, 0);
   assert.equal(evidenceSelectionLabel(final), "3~5개");
   const failed = applyAction(restored, { type: "solve", episode: 8 });
   assert.deepEqual(failed.progress.solved, before.solved);
   assert.deepEqual(failed.progress.notes, before.notes);
-  assert.deepEqual(failed.progress.drafts, before.drafts);
+  assert.equal(
+    failed.progress.drafts[8].money.answer,
+    before.drafts[8].money.answer,
+  );
+  assert.deepEqual(failed.progress.drafts[1], before.drafts[1]);
+  assert.deepEqual(
+    failed.progress.drafts[8].money.evidence,
+    [],
+    "old manual selections are replaced by automatic proof",
+  );
   assert.equal(failed.feedback!.money.answer, true);
   assert.equal(failed.feedback!.money.evidence, false);
-  assert.match(failed.feedback!.money.evidenceMessage!, /3~5개/);
+  assert.match(failed.feedback!.money.evidenceMessage!, /단서.*수집/);
+  assert.doesNotMatch(
+    failed.feedback!.money.evidenceMessage!,
+    /개.*연결|선택해/,
+  );
 });
 
 test("numeric formats accept real amounts without silently deleting arbitrary currency text from codes", () => {

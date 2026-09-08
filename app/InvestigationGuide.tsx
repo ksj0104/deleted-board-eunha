@@ -2,11 +2,7 @@
 import React from "react";
 import type { Episode, RecordFile } from "../lib/cases";
 import type { Feedback, Progress } from "../lib/game";
-import {
-  evidenceSelectionLabel,
-  investigationGuides,
-  questionPreparation,
-} from "../lib/investigation";
+import { investigationGuides, questionPreparation } from "../lib/investigation";
 import { mainCase, caseThreads, inquiryDiscovered } from "../lib/narrative";
 
 export default function InvestigationGuide({
@@ -89,9 +85,7 @@ export default function InvestigationGuide({
                       ? "✓ 내 추리 작성됨"
                       : "○ 아직 추리 중"}
                   </span>
-                  <span>
-                    근거 {states[i].evidenceCount}/{evidenceSelectionLabel(q)}
-                  </span>
+                  <span>풀이에 필요한 단서 수집됨</span>
                 </div>
                 {!solved && feedback?.[q.id]?.evidenceMessage && (
                   <p className="feedback">{feedback[q.id].evidenceMessage}</p>
@@ -156,8 +150,8 @@ export default function InvestigationGuide({
       </div>
       <footer>
         <p>
-          관련 기록을 읽으면 다음 의문이 조사 노트에 나타납니다. 모든 일상 글을
-          읽거나 수집할 필요는 없습니다.
+          관련 단서가 충분히 수집되면 다음 질문이 추리 노트에 나타납니다. 모든
+          일상 글을 읽거나 수집할 필요는 없습니다.
         </p>
         {!solved && (
           <button className="text-button" onClick={onHint}>

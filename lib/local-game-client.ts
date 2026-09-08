@@ -3,6 +3,11 @@ import { applyAction, freshProgress, gameView, type Progress } from "./game";
 import type { GameClient } from "./game-client";
 import { isRestoredOrder, validPieceOrder } from "./restoration";
 import { comparisonMatches, validOffset } from "./calibration";
+import {
+  investigationById,
+  investigationMatches,
+  validInvestigation,
+} from "./fieldwork";
 
 // GitHub project sites share an origin, so this key belongs only to this game.
 export const LOCAL_SAVE_KEY = "eunha.deleted-board.progress.v1";
@@ -43,6 +48,16 @@ function isProgress(value: unknown): value is Progress {
     value.active <= Math.min(episodes.length, value.solved.length + 1) &&
     recordIds(value.read) &&
     recordIds(value.pinned) &&
+    (value.investigations === undefined ||
+      (object(value.investigations) &&
+        Object.entries(value.investigations).every(([id, state]) => {
+          const desk = investigationById(id);
+          return (
+            !!desk &&
+            validInvestigation(desk, state) &&
+            (!state.confirmed || investigationMatches(desk, state))
+          );
+        }))) &&
     (value.calibration === undefined ||
       (object(value.calibration) &&
         validOffset(value.calibration.offset) &&

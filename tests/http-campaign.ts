@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { episodes } from "../lib/cases";
 import { walkthrough, restoredPaperOrder, cctvAlignment } from "./walkthrough";
+import { investigationActions } from "./walkthrough";
 import { inspectionCaptures } from "../lib/calibration";
 import { communityImages } from "../lib/community";
 import type { Feedback, gameView } from "../lib/game";
@@ -70,6 +71,7 @@ for (const ep of episodes) {
     await request({ type: "pin", record: r.id });
   }
   if (ep.id === 2) await request({ type: "calibrate", offset: cctvAlignment });
+  for (const action of investigationActions(ep.id)) await request(action);
   // Concrete alternative readings and counterexamples, independent of the
   // server's proof rules. Other questions remain empty during these probes.
   const proofProbes: Record<number, [string, string[], boolean][]> = {
@@ -80,19 +82,25 @@ for (const ep of episodes) {
     5: [
       ["locker", ["5-1", "5-2", "5-3", "5-4", "5-5"], true],
       ["locker", ["5-1", "5-2", "5-3", "5-4"], false],
-      ["locker", ["5-1", "5-6", "5-7"], false],
+      ["locker", ["5-1", "5-6", "5-7"], true],
     ],
     8: [
       ["money", ["3-1", "3-3", "3-4"], true],
       ["money", ["8-1", "3-1", "3-4"], true],
       ["money", ["8-1", "3-1", "3-2"], false],
-      ["money", ["8-1", "3-1", "3-4", "8-6"], false],
+      ["money", ["8-1", "3-1", "3-4", "8-6"], true],
     ],
   };
   if (ep.id === 5) await request({ type: "pin", record: "5-7" });
   for (const [question, evidence, sufficient] of proofProbes[ep.id] ?? []) {
+    const beforeCollection = (await request()).progress.pinned;
+    for (const record of beforeCollection)
+      if (!evidence.includes(record)) await request({ type: "pin", record });
+    for (const record of evidence)
+      if (!beforeCollection.includes(record))
+        await request({ type: "pin", record });
     const [answer] = walkthrough[ep.id - 1][question];
-    await request({ type: "draft", question, draft: { answer, evidence } });
+    await request({ type: "draft", question, draft: { answer, evidence: [] } });
     const result = await request({ type: "solve" });
     assert.equal(result.feedback?.[question].answer, true);
     assert.equal(
@@ -102,10 +110,18 @@ for (const ep of episodes) {
     );
     assert.equal(result.progress.solved.length, ep.id - 1);
     if (!sufficient) assert.ok(result.feedback?.[question].evidenceMessage);
-    assert.deepEqual(
-      (await request()).progress.drafts[ep.id][question].evidence,
-      evidence,
+    assert.ok(
+      (await request()).progress.drafts[ep.id][question].evidence.every((id) =>
+        evidence.includes(id),
+      ),
     );
+    const nowCollection = (await request()).progress.pinned;
+    for (const record of nowCollection)
+      if (!beforeCollection.includes(record))
+        await request({ type: "pin", record });
+    for (const record of beforeCollection)
+      if (!nowCollection.includes(record))
+        await request({ type: "pin", record });
   }
   if (ep.id === 2) {
     const [answer] = walkthrough[1].timeline;

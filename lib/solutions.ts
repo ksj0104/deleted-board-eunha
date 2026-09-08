@@ -82,7 +82,7 @@ export const solutions: Record<number, Record<string, Solution>> = {
       proof: [
         fact("대상 장면에 찍힌 화면 시각을 확인해 주세요.", "2-2"),
         fact(
-          "같은 동작을 담은 시설 원본과 대조한 근거를 연결해 주세요.",
+          "같은 동작을 담은 시설 기록 원본을 확인하고 수집해 주세요.",
           "2-1",
         ),
       ],

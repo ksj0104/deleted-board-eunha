@@ -20,21 +20,24 @@ import {
   GameErrorContext,
 } from "./components";
 import CommunityBoard, { ResidentAvatar } from "./CommunityBoard";
-import EvidencePicker from "./EvidencePicker";
 import StoryPrologue from "./StoryPrologue";
 import { recordStats } from "../lib/community";
 import InvestigationGuide from "./InvestigationGuide";
-import {
-  evidenceLimit,
-  evidenceSelectionLabel,
-  investigationGuides,
-  questionPreparation,
-} from "../lib/investigation";
+import { investigationGuides, questionPreparation } from "../lib/investigation";
 import { caseThreads, inquiryDiscovered } from "../lib/narrative";
 import InvestigationInbox from "./InvestigationInbox";
 import SoundControls from "./SoundControls";
 import CctvViewer from "./CctvViewer";
 import TimelineComparison from "./TimelineComparison";
+import InvestigationWorkbench from "./InvestigationWorkbench";
+import RecordArtifact from "./RecordArtifact";
+import {
+  investigationById,
+  investigationForEpisode,
+  investigationForRecord,
+  investigationState,
+  type InvestigationState,
+} from "../lib/fieldwork";
 import { calibrationFor, comparisonReady } from "../lib/calibration";
 import ShreddedDocument from "./ShreddedDocument";
 import {
@@ -92,7 +95,14 @@ function GameScreen({
 }) {
   const clickIntent = useRef(0);
   const [showComparison, setShowComparison] = useState(false);
+  const [activeInvestigation, setActiveInvestigation] = useState<string | null>(
+    null,
+  );
   const [view, setView] = useState<View | null>(null);
+  const [investigationEdits, setInvestigationEdits] = useState<
+    Record<string, { state: InvestigationState; failed: boolean }>
+  >({});
+  const investigationRevisions = useRef<Record<string, number>>({});
   const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(0);
@@ -201,7 +211,11 @@ function GameScreen({
                   ? "select"
                   : "deselect",
               );
-            else if (action.type === "restore" || action.type === "calibrate")
+            else if (
+              ["restore", "calibrate", "confirm-investigation"].includes(
+                action.type,
+              )
+            )
               sound.play("success");
             else if (action.type === "hint") sound.play("notice");
             else if (action.type === "start" || action.type === "intro")
@@ -217,8 +231,12 @@ function GameScreen({
               );
             savedView.current = data;
             setView(data);
-            if (action.type === "reset") updateDraftEdits(() => ({}));
-            else if (isLatestEdit())
+            if (action.type === "reset") {
+              updateDraftEdits(() => ({}));
+              setActiveInvestigation(null);
+              setInvestigationEdits({});
+              investigationRevisions.current = {};
+            } else if (isLatestEdit())
               updateDraftEdits((edits) => {
                 const next = { ...edits };
                 delete next[key];
@@ -229,9 +247,14 @@ function GameScreen({
             // A superseded request must not mark the newer selection as failed.
             if (edit && !isLatestEdit()) return null;
             if (
-              !["read", "note", "draft", "arrange", "align"].includes(
-                action.type,
-              )
+              ![
+                "read",
+                "note",
+                "draft",
+                "arrange",
+                "align",
+                "investigate",
+              ].includes(action.type)
             )
               sound.play("retry");
             if (edit)
@@ -389,6 +412,13 @@ function GameScreen({
     maxEpisode = Math.min(8, p.solved.length + 1),
     solved = p.solved.includes(e.id);
   const evidence = p.pinned.map(recordById).filter((r): r is RecordFile => !!r);
+  const caseInvestigation = investigationForEpisode(e.id);
+  const recordInvestigation = selected
+    ? investigationForRecord(selected.id)
+    : undefined;
+  const workbench = activeInvestigation
+    ? investigationById(activeInvestigation)
+    : undefined;
   const discoveredQuestions = e.questions.filter((q) =>
     inquiryDiscovered(e, q, p),
   );
@@ -428,11 +458,9 @@ function GameScreen({
       makeDraft(q);
     const next = update({
       ...latest,
-      evidence: latest.evidence.filter((id) => p.pinned.includes(id)),
+      evidence: [],
     });
-    sound.play(
-      next.evidence.length < latest.evidence.length ? "deselect" : "select",
-    );
+    sound.play("select");
     persistDraft(e.id, q.id, next);
   };
   const solve = async () => {
@@ -642,7 +670,7 @@ function GameScreen({
                           : tab === "evidence"
                             ? "수집한 증거는 다음 사건에서도 다시 살펴볼 수 있습니다."
                             : tab === "deductions"
-                              ? "가설을 세우고, 그 가설을 뒷받침하는 기록을 선택하세요."
+                              ? "단서를 조사하고 수집하면 추리 노트에 질문이 나타납니다."
                               : e.subtitle}
                 </p>
               </div>
@@ -962,15 +990,35 @@ function GameScreen({
             <div className="deduction-intro">
               <p>
                 <strong>
-                  읽은 기록에서 생긴 의문을 정리하고, 근거와 연결하세요.
+                  수집한 단서에서 생긴 의문을 정리하고, 가설을 검증하세요.
                 </strong>
-                글을 수집한 것만으로는 근거가 연결되지 않습니다. 추리를 정리한
-                뒤 ‘내 추리 검증하기’를 누르세요.
+                문항을 풀 수 있는 단서가 모이면 질문이 자동으로 나타납니다. 직접
+                조사한 내용을 바탕으로 답을 작성하고 검증하세요.
               </p>
               <button className="secondary" onClick={() => setShowHint(true)}>
                 힌트 {level}/3
               </button>
             </div>
+            {caseInvestigation && (
+              <section className="investigation-entry">
+                <div>
+                  <span>직접 조사</span>
+                  <h3>{caseInvestigation.title}</h3>
+                  <p>
+                    {investigationState(p, caseInvestigation).confirmed
+                      ? "조사 결과를 확인했습니다. 수집한 단서를 바탕으로 아래 질문에 답하세요."
+                      : "원문에서 단서를 찾아 연결한 뒤 추리를 검증하세요. 조사 중인 배치도 자동 저장됩니다."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setActiveInvestigation(caseInvestigation.id)}
+                >
+                  직접 조사 열기 ↗
+                </button>
+              </section>
+            )}
             {failedDrafts.length > 0 && (
               <div className="error-banner">
                 <span>
@@ -992,7 +1040,11 @@ function GameScreen({
             )}
             {!discoveredQuestions.length && (
               <div className="notebook-start">
-                <h3>먼저 사건의 출발점을 확인하세요</h3>
+                <h3>단서가 모이면 질문이 나타납니다</h3>
+                <p>
+                  관련 원문을 읽고 ‘증거 수집’을 눌러 보관하세요. 문항을 풀기에
+                  충분한 자료가 모였는지 자동으로 확인합니다.
+                </p>
                 <p>{caseThreads[e.id - 1].entryReason}</p>
                 <button
                   className="primary"
@@ -1044,7 +1096,7 @@ function GameScreen({
                         : q.kind === "order"
                           ? "위아래 화살표로 순서 정하기"
                           : "답 하나 선택"}{" "}
-                      → ② 아래에서 근거 {evidenceSelectionLabel(q)} 선택
+                      → 직접 조사한 내용으로 답하기
                     </span>
                   </div>
                   {q.kind === "choice" && (
@@ -1127,31 +1179,6 @@ function GameScreen({
                       ))}
                     </ol>
                   )}
-                  <EvidencePicker
-                    records={evidence}
-                    selectedIds={draft.evidence}
-                    minimum={q.evidenceCount}
-                    maximum={evidenceLimit(q)}
-                    disabled={blocking > 0}
-                    onRead={openRecord}
-                    onCollect={() => goTab("board")}
-                    onToggle={(id) => {
-                      saveDraft(q, (current) => {
-                        const removing = current.evidence.includes(id);
-                        if (
-                          !removing &&
-                          current.evidence.length >= evidenceLimit(q)
-                        )
-                          return current;
-                        return {
-                          ...current,
-                          evidence: removing
-                            ? current.evidence.filter((record) => record !== id)
-                            : [...current.evidence, id],
-                        };
-                      });
-                    }}
-                  />
                   {result && !(result.answer && result.evidence) && (
                     <p className="feedback" role="status">
                       {!result.answer
@@ -1159,7 +1186,7 @@ function GameScreen({
                         : "가설은 맞습니다."}{" "}
                       {!result.evidence &&
                         (result.evidenceMessage ??
-                          `이 가설을 입증하는 증거 ${evidenceSelectionLabel(q)}를 다시 선택해 주세요.`)}
+                          "필요한 단서를 더 수집하고 직접 조사 결과를 확인해 주세요.")}
                     </p>
                   )}
                 </section>
@@ -1167,10 +1194,7 @@ function GameScreen({
             })}
             {discoveredQuestions.length < e.questions.length && (
               <div className="remaining-inquiries">
-                <p>
-                  다른 기록을 읽으면 지금의 추리를 이어 갈 새로운 의문이
-                  나타납니다.
-                </p>
+                <p>충분한 단서를 수집하면 다음 질문이 자동으로 나타납니다.</p>
                 <button
                   className="text-button"
                   onClick={() => {
@@ -1184,7 +1208,7 @@ function GameScreen({
             )}
             <div className="submit-row">
               <p>
-                현재 추리와 근거 준비{" "}
+                검증할 추리 준비{" "}
                 {
                   discoveredQuestions.filter((q) => {
                     const s = questionPreparation(e, q, p, feedback);
@@ -1241,6 +1265,26 @@ function GameScreen({
                 <span className="post-status">{selected.status}</span>
               )}
             </div>
+            {recordInvestigation &&
+              recordInvestigation.episode <= maxEpisode && (
+                <section className="investigation-entry">
+                  <div>
+                    <span>자료를 직접 살펴보기</span>
+                    <h3>{recordInvestigation.title}</h3>
+                    <p>접힌 정보와 원본을 펼쳐 다른 자료와 대조하세요.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="primary"
+                    onClick={() => {
+                      sound.play("open");
+                      setActiveInvestigation(recordInvestigation.id);
+                    }}
+                  >
+                    직접 조사 열기 ↗
+                  </button>
+                </section>
+              )}
             {selected.shredded ? (
               <ShreddedDocument
                 record={selected}
@@ -1262,6 +1306,8 @@ function GameScreen({
                     : undefined
                 }
               />
+            ) : recordInvestigation ? (
+              <RecordArtifact record={selected} />
             ) : (
               <div className="document-body">
                 {selected.paragraphs.map((text, i) => (
@@ -1287,7 +1333,7 @@ function GameScreen({
                 <figcaption>{selected.photo.caption}</figcaption>
               </figure>
             )}
-            {selected.attachment && (
+            {selected.attachment && !recordInvestigation && (
               <section className="attachment">
                 <h3>↳ {selected.attachment.title}</h3>
                 <div className="table-scroll">
@@ -1332,14 +1378,14 @@ function GameScreen({
               </section>
             )}
             {recordRestored(selected, p) &&
-              e.questions.some((q) =>
+              discoveredQuestions.some((q) =>
                 caseThreads[e.id - 1].inquiries[q.id].discoveredBy.includes(
                   selected.id,
                 ),
               ) && (
                 <section className="record-inquiries">
                   <h3>이 기록을 읽고 생긴 의문</h3>
-                  {e.questions
+                  {discoveredQuestions
                     .filter((q) =>
                       caseThreads[e.id - 1].inquiries[
                         q.id
@@ -1420,8 +1466,8 @@ function GameScreen({
             </footer>
             <div className="document-tools">
               <p className="record-next-help">
-                단서를 찾았다면 증거로 수집한 뒤, 추리 노트에서 해당 질문의
-                근거로 선택하세요.
+                단서를 증거로 수집하면 풀 수 있는 질문이 추리 노트에 자동으로
+                나타납니다.
               </p>
               <button className="text-button" onClick={() => goTab("evidence")}>
                 증거 보관함 열기 ↗
@@ -1433,6 +1479,56 @@ function GameScreen({
                 추리 노트 열기 ↗
               </button>
             </div>
+          </Dialog>
+        )}
+        {workbench && (
+          <Dialog
+            wide
+            label={workbench.title}
+            onClose={() => setActiveInvestigation(null)}
+          >
+            <InvestigationWorkbench
+              key={workbench.id}
+              desk={workbench}
+              saved={
+                investigationEdits[workbench.id]?.state ??
+                investigationState(p, workbench)
+              }
+              initialFailed={investigationEdits[workbench.id]?.failed}
+              progress={p}
+              onSave={async (state, confirm) => {
+                const id = workbench.id;
+                const revision = (investigationRevisions.current[id] ?? 0) + 1;
+                investigationRevisions.current[id] = revision;
+                setInvestigationEdits((edits) => ({
+                  ...edits,
+                  [id]: { state, failed: false },
+                }));
+                const result = await send({
+                  type: confirm ? "confirm-investigation" : "investigate",
+                  episode: workbench.episode,
+                  investigation: workbench.id,
+                  investigationState: state,
+                });
+                if (investigationRevisions.current[id] === revision) {
+                  setInvestigationEdits((edits) => {
+                    const next = { ...edits };
+                    if (result) delete next[id];
+                    else next[id] = { state, failed: true };
+                    return next;
+                  });
+                }
+                return !!result;
+              }}
+              onRead={(id) => {
+                const record = recordById(id);
+                if (record) openRecord(record);
+              }}
+              onNotes={() => {
+                setActiveInvestigation(null);
+                goTab("deductions");
+              }}
+            />
           </Dialog>
         )}
         {showComparison && (
@@ -1489,8 +1585,9 @@ function GameScreen({
                 사건에서도 이전 증거를 사용할 수 있습니다.
               </p>
               <p>
-                <strong>추리 노트</strong>에서 가설마다 답과 지정된 개수의
-                증거를 선택하세요. 순서는 화살표로 바꾸고 숫자 답안은 ‘입력
+                <strong>추리 노트</strong>에는 충분한 단서가 수집된 질문이
+                자동으로 나타납니다. 근거는 자동으로 연결되며 직접 조사한 내용을
+                바탕으로 답하세요. 순서는 화살표로 바꾸고 숫자 답안은 ‘입력
                 적용’을 누르세요.
               </p>
               <p>

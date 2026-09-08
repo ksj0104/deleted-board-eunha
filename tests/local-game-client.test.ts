@@ -7,6 +7,7 @@ import {
   LOCAL_SAVE_KEY,
 } from "../lib/local-game-client";
 import { walkthrough, cctvAlignment } from "./walkthrough";
+import { investigationActions } from "./walkthrough";
 
 function memoryStorage() {
   const values = new Map<string, string>();
@@ -36,6 +37,8 @@ test("browser saves: all eight episodes, drafts, evidence, notes and both ending
         await client.request({ type: "pin", record });
     if (episode.id === 2)
       await client.request({ type: "calibrate", offset: cctvAlignment });
+    for (const action of investigationActions(episode.id))
+      await client.request(action);
     for (const [question, [answer, ids]] of Object.entries(drafts))
       await client.request({
         type: "draft",

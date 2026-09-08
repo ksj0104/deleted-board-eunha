@@ -1,5 +1,8 @@
 import type { Episode, Question } from "./cases";
 import type { Feedback, Progress } from "./game";
+import { automaticEvidence } from "./automatic-evidence";
+import { investigationForEpisode, investigationState } from "./fieldwork";
+import { calibrationFor } from "./calibration";
 
 export const evidenceLimit = (question: Question) =>
   question.evidenceMax ?? question.evidenceCount;
@@ -114,14 +117,15 @@ export function questionPreparation(
     (Array.isArray(draft.answer)
       ? draft.answer.length === question.options?.length
       : !!draft.answer.trim());
-  const evidenceCount = new Set(
-    (draft?.evidence ?? []).filter((id) => progress.pinned.includes(id)),
-  ).size;
-  const ready =
-    answered &&
-    evidenceCount >= question.evidenceCount &&
-    evidenceCount <= evidenceLimit(question) &&
-    evidenceCount === draft?.evidence.length;
+  const evidence = automaticEvidence(episode, question, progress.pinned);
+  const evidenceCount = evidence?.length ?? 0;
+  const desk = investigationForEpisode(episode.id);
+  const investigated = desk
+    ? investigationState(progress, desk).confirmed
+    : episode.id !== 2 ||
+      !["time", "timeline"].includes(question.id) ||
+      calibrationFor(progress).confirmed;
+  const ready = answered && evidence !== null && investigated;
   const result = feedback?.[question.id];
   const confirmed =
     progress.solved.includes(episode.id) ||
@@ -133,11 +137,13 @@ export function questionPreparation(
     : result && !result.answer
       ? "답 다시 검토"
       : result && !result.evidence
-        ? "근거 다시 검토"
+        ? "조사 다시 검토"
         : ready
           ? "검증 준비됨"
           : answered
-            ? "근거 선택하기"
+            ? evidence
+              ? "직접 조사하기"
+              : "단서 더 수집하기"
             : "답 찾는 중";
   return { answered, evidenceCount, ready, confirmed, needsReview, label };
 }

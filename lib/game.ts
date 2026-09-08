@@ -8,6 +8,16 @@ import {
 } from "./restoration";
 import { solutions, resolutions, endings, type Solution } from "./solutions";
 import { canReadRecord } from "./world";
+import { automaticEvidence } from "./automatic-evidence";
+import {
+  investigationById,
+  investigationForEpisode,
+  investigationMatches,
+  investigationReady,
+  investigationState,
+  validInvestigation,
+  type InvestigationState,
+} from "./fieldwork";
 import { evidenceLimit, evidenceSelectionLabel } from "./investigation";
 import {
   calibrationFor,
@@ -29,6 +39,7 @@ export type Progress = {
   introduced?: number[];
   restorations?: Record<string, Restoration>;
   calibration?: Calibration;
+  investigations?: Record<string, InvestigationState>;
   notes: Record<string, string>;
   drafts: Record<string, Record<string, Draft>>;
   hints: Record<string, number>;
@@ -45,6 +56,8 @@ export type Action = {
   ending?: string;
   pieces?: string[];
   offset?: number;
+  investigation?: string;
+  investigationState?: InvestigationState;
 };
 export type Feedback = Record<
   string,
@@ -61,6 +74,7 @@ export const freshProgress = (): Progress => ({
   introduced: [],
   restorations: {},
   calibration: { offset: 0, confirmed: false },
+  investigations: {},
   notes: {},
   drafts: {},
   hints: {},
@@ -170,7 +184,40 @@ export function applyAction(
   } else if (action.type === "intro")
     p.introduced = [...new Set([...(p.introduced ?? []), ep])];
   else if (action.type === "visit") p.active = ep;
-  else if (action.type === "align" || action.type === "calibrate") {
+  else if (
+    action.type === "investigate" ||
+    action.type === "confirm-investigation"
+  ) {
+    const desk = investigationById(action.investigation ?? "");
+    const state = action.investigationState;
+    if (!desk || desk.episode !== ep || !validInvestigation(desk, state))
+      throw new Error("조사대의 항목과 배치를 다시 확인해 주세요.");
+    if (
+      state.inspected.some(
+        (id) =>
+          !p.read.includes(desk.clues.find((clue) => clue.id === id)!.source),
+      )
+    )
+      throw new Error(
+        "원문을 먼저 열어 확인한 자료만 조사대에 놓을 수 있습니다.",
+      );
+    const confirm = action.type === "confirm-investigation";
+    if (confirm && !investigationReady(p, desk))
+      throw new Error(
+        "아직 대조하지 않은 원문이 있습니다. 자료 목록에서 확인해 주세요.",
+      );
+    if (confirm && !investigationMatches(desk, state))
+      throw new Error(
+        "일부 연결이 원문과 맞지 않습니다. 출처와 항목의 대응을 다시 살펴보세요.",
+      );
+    if (!investigationState(p, desk).confirmed) {
+      p.investigations ??= {};
+      p.investigations[desk.id] = { ...state, confirmed: confirm };
+      if (confirm)
+        for (const id of desk.sources)
+          if (!p.pinned.includes(id)) p.pinned.push(id);
+    }
+  } else if (action.type === "align" || action.type === "calibrate") {
     if (!canReadRecord(recordById("2-1")!, p) || !comparisonReady(p))
       throw new Error(
         "정문 작동 기록과 C2 보관 화면을 모두 읽은 뒤 대조해 주세요.",
@@ -246,7 +293,7 @@ export function applyAction(
       new Set(d.evidence).size !== d.evidence.length ||
       d.evidence.length > evidenceLimit(q)
     )
-      throw new Error("수집한 증거에서 필요한 개수만 선택해 주세요.");
+      throw new Error("저장할 답안과 수집 기록의 형식을 확인해 주세요.");
     if (q.kind === "order") {
       if (
         !Array.isArray(d.answer) ||
@@ -265,7 +312,43 @@ export function applyAction(
   } else if (action.type === "hint")
     p.hints[ep] = Math.min(3, (p.hints[ep] ?? 0) + 1);
   else if (action.type === "solve") {
-    const feedback = grade(ep, p.drafts[ep] ?? {}, p.pinned);
+    const automaticDrafts = Object.fromEntries(
+      e.questions.flatMap((q) => {
+        const draft = p.drafts[ep]?.[q.id];
+        return draft
+          ? [
+              [
+                q.id,
+                { ...draft, evidence: automaticEvidence(e, q, p.pinned) ?? [] },
+              ],
+            ]
+          : [];
+      }),
+    );
+    p.drafts[ep] = automaticDrafts;
+    const feedback = grade(ep, automaticDrafts, p.pinned);
+    for (const [id, result] of Object.entries(feedback)) {
+      if (result.evidence) continue;
+      const missing = solutions[ep][id].proof.filter(
+        (fact) =>
+          !fact.sources.some((alternative) =>
+            alternative.every((source) => p.pinned.includes(source)),
+          ),
+      );
+      result.evidenceMessage = [
+        "이 의문을 풀 단서가 아직 충분히 수집되지 않았습니다.",
+        ...missing.slice(0, 2).map((fact) => fact.hint),
+      ].join(" ");
+    }
+    const investigation = investigationForEpisode(ep);
+    if (investigation && !investigationState(p, investigation).confirmed)
+      for (const id of Object.keys(feedback))
+        if (feedback[id].evidence)
+          feedback[id] = {
+            ...feedback[id],
+            evidence: false,
+            evidenceMessage: `${investigation.title}에서 직접 조사한 연결을 먼저 확인해 주세요.`,
+          };
     if (ep === 2 && !p.calibration.confirmed && !p.solved.includes(2))
       for (const id of ["time", "timeline"])
         feedback[id] = {
