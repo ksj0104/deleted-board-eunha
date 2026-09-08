@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import type { RecordFile } from "../lib/cases";
 import { communityImages, recordStats } from "../lib/community";
 import { episodeStories } from "../lib/stories";
@@ -35,7 +35,18 @@ export default function CommunityBoard({
   const [sort, setSort] = useState("newest");
   const [photos, setPhotos] = useState(false);
   const [page, setPage] = useState(1);
-  const source = communityRecords(progress);
+  const feedHeading = useRef<HTMLHeadingElement>(null);
+  const available = communityRecords(progress);
+  // A later reply advances the world's clock, but does not replace the list
+  // the player is reading. Only an explicit refresh accepts the new posts.
+  // Game remounts this board at the start of a fresh session or after a reset.
+  const [acceptedIds, setAcceptedIds] = useState(() =>
+    available.map((record) => record.id),
+  );
+  const [arrivalNotice, setArrivalNotice] = useState("");
+  const accepted = new Set(acceptedIds);
+  const source = available.filter((record) => accepted.has(record.id));
+  const arrivals = available.filter((record) => !accepted.has(record.id));
   const boards = ["전체", ...new Set(source.map((r) => r.board))];
   const search = query.trim().toLocaleLowerCase();
   const filtered = source
@@ -107,7 +118,7 @@ export default function CommunityBoard({
       <div className="community-columns">
         <div className="community-feed">
           <div className="section-heading">
-            <h2>
+            <h2 ref={feedHeading} tabIndex={-1}>
               이웃들의 이야기 <span>{source.length}</span>
             </h2>
             <span className="muted">조회수·댓글은 보관 당시 기록</span>
@@ -163,6 +174,29 @@ export default function CommunityBoard({
               ▧ 사진이 있는 글
             </button>
           </div>
+          <span className="sr-only" role="status">
+            {arrivalNotice}
+          </span>
+          {arrivals.length > 0 && (
+            <div className="board-arrivals">
+              <p role="status">
+                {arrivals.length}개의 새 글이 도착했습니다.
+                <small>검색 조건과 페이지를 유지해 목록에 더합니다.</small>
+              </p>
+              <button
+                className="secondary"
+                onClick={() => {
+                  setAcceptedIds(available.map((record) => record.id));
+                  setArrivalNotice(
+                    `새 글 ${arrivals.length}개를 반영했습니다.`,
+                  );
+                  feedHeading.current?.focus({ preventScroll: true });
+                }}
+              >
+                새 글 {arrivals.length}개 반영
+              </button>
+            </div>
+          )}
           <div className="record-table community-table">
             {shown.map((r) => (
               <button

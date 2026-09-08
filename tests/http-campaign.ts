@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { episodes } from "../lib/cases";
 import { walkthrough } from "./walkthrough";
 import { communityImages } from "../lib/community";
-import type { gameView } from "../lib/game";
+import type { Feedback, gameView } from "../lib/game";
 const base = process.env.GAME_TEST_URL ?? "http://localhost:3000";
 let cookie = "";
 async function request(action?: unknown, expected = 200) {
@@ -18,6 +18,7 @@ async function request(action?: unknown, expected = 200) {
   if (setCookie) cookie = setCookie.split(";")[0];
   const data = (await r.json()) as ReturnType<typeof gameView> & {
     error?: string;
+    feedback?: Feedback;
   };
   assert.equal(r.status, expected, JSON.stringify(data));
   return data;
@@ -54,6 +55,58 @@ for (const ep of episodes) {
     await request({ type: "read", record: r.id });
     await request({ type: "pin", record: r.id });
   }
+  // Concrete alternative readings and counterexamples, independent of the
+  // server's proof rules. Other questions remain empty during these probes.
+  const proofProbes: Record<number, [string, string[], boolean][]> = {
+    2: [
+      ["timeline", ["2-3", "2-6"], true],
+      ["timeline", ["2-1", "2-6"], false],
+    ],
+    5: [
+      ["locker", ["5-1", "5-2", "5-3", "5-4", "5-5"], true],
+      ["locker", ["5-1", "5-2", "5-3", "5-4"], false],
+      ["locker", ["5-1", "5-6", "5-7"], false],
+    ],
+    8: [
+      ["money", ["3-1", "3-3", "3-4"], true],
+      ["money", ["8-1", "3-1", "3-4"], true],
+      ["money", ["8-1", "3-1", "3-2"], false],
+      ["money", ["8-1", "3-1", "3-4", "8-6"], false],
+    ],
+  };
+  if (ep.id === 5) await request({ type: "pin", record: "5-7" });
+  for (const [question, evidence, sufficient] of proofProbes[ep.id] ?? []) {
+    const [answer] = walkthrough[ep.id - 1][question];
+    await request({ type: "draft", question, draft: { answer, evidence } });
+    const result = await request({ type: "solve" });
+    assert.equal(result.feedback?.[question].answer, true);
+    assert.equal(
+      result.feedback?.[question].evidence,
+      sufficient,
+      `${ep.id}/${question}: ${evidence.join(",")}`,
+    );
+    assert.equal(result.progress.solved.length, ep.id - 1);
+    if (!sufficient) assert.ok(result.feedback?.[question].evidenceMessage);
+    assert.deepEqual(
+      (await request()).progress.drafts[ep.id][question].evidence,
+      evidence,
+    );
+  }
+  if (ep.id === 2) {
+    const [answer] = walkthrough[1].timeline;
+    await request(
+      {
+        type: "draft",
+        question: "timeline",
+        draft: { answer, evidence: ep.records.map((record) => record.id) },
+      },
+      400,
+    );
+  }
+  if (proofProbes[ep.id])
+    console.log(
+      `PASS HTTP episode ${ep.id}: alternative evidence, missing facts, persisted drafts and unrelated records`,
+    );
   await request({ type: "note", text: `HTTP ${ep.id}: 서버에 저장한 메모` });
   await request({ type: "hint" });
   for (const [question, [answer, evidence]] of Object.entries(

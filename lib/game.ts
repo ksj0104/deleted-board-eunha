@@ -1,6 +1,7 @@
 import { episodes, recordById } from "./cases";
-import { solutions, resolutions, endings } from "./solutions";
+import { solutions, resolutions, endings, type Solution } from "./solutions";
 import { canReadRecord } from "./world";
+import { evidenceLimit, evidenceSelectionLabel } from "./investigation";
 
 export type Draft = { answer: string | string[]; evidence: string[] };
 export type Progress = {
@@ -27,7 +28,10 @@ export type Action = {
   text?: string;
   ending?: string;
 };
-export type Feedback = Record<string, { answer: boolean; evidence: boolean }>;
+export type Feedback = Record<
+  string,
+  { answer: boolean; evidence: boolean; evidenceMessage?: string }
+>;
 export const freshProgress = (): Progress => ({
   version: 1,
   active: 1,
@@ -46,33 +50,80 @@ export const freshProgress = (): Progress => ({
 export const unlocked = (p: Progress) =>
   Math.min(episodes.length, p.solved.length + 1);
 const normalize = (v: string) =>
-  v
-    .normalize("NFKC")
-    .trim()
-    .replace(/[\s,，원]/g, "")
-    .toLowerCase();
+  v.normalize("NFKC").replace(/\s/g, "").toLowerCase();
+
+function normalizedAnswer(value: string, format?: Solution["format"]) {
+  const text = value.normalize("NFKC").trim();
+  if (format === "digits") return /^\d{4}$/.test(text) ? text : null;
+  if (format === "time")
+    return /^([01]\d|2[0-3]):[0-5]\d$/.test(text) ? text : null;
+  if (format === "won") {
+    const amount = text.replace(/\s/g, "").replace(/^₩/, "");
+    const tenThousands = /^(\d+)만(?:원)?$/.exec(amount);
+    if (tenThousands)
+      return (BigInt(tenThousands[1]) * BigInt(10000)).toString();
+    if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:원)?$/.test(amount)) return null;
+    return BigInt(amount.replace(/[,원]/g, "")).toString();
+  }
+  return normalize(text);
+}
 export function grade(
   episode: number,
   drafts: Record<string, Draft>,
   pinned: string[],
 ): Feedback {
   const feedback: Feedback = {};
+  if (!solutions[episode]) throw new Error("존재하지 않는 사건입니다.");
   for (const [id, expected] of Object.entries(solutions[episode])) {
     const draft = drafts[id];
+    const question = episodes[episode - 1].questions.find((q) => q.id === id)!;
     const answer =
       !!draft &&
       (Array.isArray(expected.answer)
         ? Array.isArray(draft.answer) &&
           JSON.stringify(draft.answer) === JSON.stringify(expected.answer)
         : typeof draft.answer === "string" &&
-          normalize(draft.answer) === normalize(expected.answer));
-    const evidence =
-      !!draft &&
-      draft.evidence.length === expected.evidence.length &&
-      expected.evidence.every(
-        (id) => draft.evidence.includes(id) && pinned.includes(id),
+          normalizedAnswer(draft.answer, expected.format) ===
+            normalizedAnswer(expected.answer, expected.format));
+    const selected = new Set(draft?.evidence ?? []);
+    const allowed = new Set([
+      ...expected.proof.flatMap((requirement) => requirement.sources.flat()),
+      ...(expected.supportingEvidence ?? []),
+    ]);
+    let evidenceMessage: string | undefined;
+    if (
+      !draft ||
+      selected.size !== draft.evidence.length ||
+      [...selected].some((source) => !pinned.includes(source))
+    ) {
+      evidenceMessage = "수집한 자료를 중복 없이 근거로 연결해 주세요.";
+    } else if (
+      selected.size < question.evidenceCount ||
+      selected.size > evidenceLimit(question)
+    ) {
+      evidenceMessage = `이 결론의 근거를 ${evidenceSelectionLabel(question)} 연결해 주세요. 개수만 채워도 입증되는 것은 아닙니다.`;
+    } else if ([...selected].some((source) => !allowed.has(source))) {
+      evidenceMessage =
+        "선택한 자료 중 이 결론을 직접 뒷받침하지 않는 자료가 있습니다. 각 자료가 어느 사실을 확인하는지 검토해 주세요.";
+    } else {
+      const missing = expected.proof.filter(
+        (requirement) =>
+          !requirement.sources.some((alternative) =>
+            alternative.every((source) => selected.has(source)),
+          ),
       );
-    feedback[id] = { answer, evidence };
+      evidenceMessage = missing.length
+        ? missing
+            .slice(0, 2)
+            .map((requirement) => requirement.hint)
+            .join(" ")
+        : undefined;
+    }
+    feedback[id] = {
+      answer,
+      evidence: evidenceMessage === undefined,
+      ...(evidenceMessage ? { evidenceMessage } : {}),
+    };
   }
   return feedback;
 }
@@ -130,7 +181,7 @@ export function applyAction(
         (id) => typeof id === "string" && p.pinned.includes(id),
       ) ||
       new Set(d.evidence).size !== d.evidence.length ||
-      d.evidence.length > q.evidenceCount
+      d.evidence.length > evidenceLimit(q)
     )
       throw new Error("수집한 증거에서 필요한 개수만 선택해 주세요.");
     if (q.kind === "order") {

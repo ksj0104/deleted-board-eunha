@@ -2,7 +2,12 @@ import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import React from "react";
-import { episodes, recordById, type RecordFile } from "../lib/cases";
+import {
+  allRecords,
+  episodes,
+  recordById,
+  type RecordFile,
+} from "../lib/cases";
 import { freshProgress, applyAction, gameView, type Action } from "../lib/game";
 import { walkthrough } from "./walkthrough";
 import { caseThreads, mainCase } from "../lib/narrative";
@@ -35,12 +40,24 @@ const { render, screen, within, waitFor, cleanup, fireEvent, act } =
 const { default: userEvent } = await import("@testing-library/user-event");
 afterEach(() => cleanup());
 
+async function openEvidencePicker(
+  user: ReturnType<typeof userEvent.setup>,
+  card: HTMLElement,
+) {
+  const button = within(card).getByRole("button", {
+    name: /^증거 찾기(?: 접기)?$/,
+  });
+  if (button.getAttribute("aria-expanded") !== "true") await user.click(button);
+}
+
 async function openSourceRecord(
   user: ReturnType<typeof userEvent.setup>,
   record: RecordFile,
 ) {
   if (isPublicRecord(record)) {
     await user.click(screen.getByRole("button", { name: "게시판 기록" }));
+    const newPosts = screen.queryByRole("button", { name: /새 글 \d+개 반영/ });
+    if (newPosts) await user.click(newPosts);
     fireEvent.change(screen.getByRole("searchbox", { name: "기록 검색" }), {
       target: { value: record.title },
     });
@@ -114,6 +131,7 @@ test("UI: slow saves never block evidence toggles, coalesce changes and verify o
   render(<Game />);
   await user.click(await screen.findByRole("button", { name: "추리 노트" }));
   const card = document.getElementById("question-1-alias")!;
+  await openEvidencePicker(user, card);
   const proof = (id: string) =>
     within(card).getByRole("checkbox", {
       name: new RegExp(id),
@@ -123,13 +141,19 @@ test("UI: slow saves never block evidence toggles, coalesce changes and verify o
   assert.equal(proof("1-3").disabled, false);
   await user.click(proof("1-3"));
   assert.equal(proof("1-3").checked, true);
-  assert.equal(proof("1-1").disabled, true, "evidence limit still applies");
+  assert.equal(
+    proof("1-1").disabled,
+    (episodes[0].questions[0].evidenceMax ??
+      episodes[0].questions[0].evidenceCount) === 2,
+    "evidence limit still applies",
+  );
   await user.click(proof("1-2"));
   assert.equal(proof("1-2").checked, false);
   await user.click(proof("1-2"));
   await user.click(within(card).getByRole("radio", { name: /우편함/ }));
   await user.click(within(card).getByRole("radio", { name: /계단참/ }));
   const status = document.getElementById("question-1-status")!;
+  await openEvidencePicker(user, status);
   const other = within(status).getByRole("checkbox", { name: /1-1/ });
   await user.click(other);
   await user.click(other);
@@ -144,8 +168,8 @@ test("UI: slow saves never block evidence toggles, coalesce changes and verify o
   notes = screen.getByRole("dialog", { name: "추리 노트" });
   const aliasProofs = () =>
     within(document.getElementById("question-1-alias")!).getAllByRole(
-      "checkbox",
-      { checked: true },
+      "button",
+      { name: /근거 연결 해제/ },
     ).length;
   assert.equal(aliasProofs(), 2, "closing the modal retains unsaved choices");
   await user.click(
@@ -179,6 +203,7 @@ test("UI: failed draft saves keep choices, block stale verification and allow an
   render(<Game />);
   await user.click(await screen.findByRole("button", { name: "추리 노트" }));
   const card = document.getElementById("question-1-alias")!;
+  await openEvidencePicker(user, card);
   await user.click(within(card).getByRole("checkbox", { name: /1-2/ }));
   await user.click(within(card).getByRole("checkbox", { name: /1-3/ }));
   const notes = screen.getByRole("dialog", { name: "추리 노트" });
@@ -215,6 +240,72 @@ test("UI: failed draft saves keep choices, block stale verification and allow an
     null,
   );
   assert.deepEqual(server.state().drafts[1].alias.evidence, ["1-2", "1-3"]);
+});
+
+test("UI: a legacy final-episode draft survives and can be completed with the expanded proof requirements", async () => {
+  let state = {
+    ...freshProgress(),
+    active: 8,
+    started: true,
+    solved: [1, 2, 3, 4, 5, 6, 7],
+    introduced: [1, 2, 3, 4, 5, 6, 7, 8],
+    read: allRecords.map((record) => record.id),
+    pinned: allRecords.map((record) => record.id),
+    notes: { 1: "이전에 저장한 모임 메모" },
+    drafts: {
+      8: {
+        money: {
+          answer:
+            "조민석이 승인한 300만 원이 본인 대표 업체로 지급되고 공개 장부에서 다른 업체로 표시됐다",
+          evidence: ["8-1"],
+        },
+      },
+    },
+  } as ReturnType<typeof freshProgress>;
+  globalThis.fetch = (async (
+    _url: unknown,
+    options?: { method?: string; body?: string },
+  ) => {
+    if (options?.method === "POST") {
+      const result = applyAction(state, JSON.parse(options.body!));
+      state = result.progress;
+      return Response.json({ ...gameView(state), feedback: result.feedback });
+    }
+    return Response.json(gameView(state));
+  }) as typeof fetch;
+  const user = userEvent.setup({ document: dom.window.document });
+  render(<Game />);
+  await user.click(await screen.findByRole("button", { name: "추리 노트" }));
+  const card = document.getElementById("question-8-money")!;
+  assert.equal(within(card).getAllByRole("radio", { checked: true }).length, 1);
+  assert.ok(within(card).getByRole("list", { name: "연결한 증거" }));
+  assert.deepEqual(state.drafts[8].money.evidence, ["8-1"]);
+  await user.click(
+    within(card).getByRole("button", { name: /8-1 .* 근거 연결 해제/ }),
+  );
+  await waitFor(() => assert.deepEqual(state.drafts[8].money.evidence, []));
+  await openEvidencePicker(user, card);
+  for (const id of ["3-1", "3-3", "3-4"]) {
+    fireEvent.change(
+      within(card).getByRole("searchbox", { name: "수집한 증거 검색" }),
+      {
+        target: { value: recordById(id)!.title },
+      },
+    );
+    await user.click(
+      within(card).getByRole("checkbox", { name: new RegExp(id) }),
+    );
+    await waitFor(() => assert.ok(state.drafts[8].money.evidence.includes(id)));
+  }
+  await user.click(screen.getByRole("button", { name: /내 추리 검증하기/ }));
+  await within(card).findByText("입증 완료");
+  assert.equal(
+    state.solved.length,
+    7,
+    "other unfinished questions still need proof",
+  );
+  assert.equal(state.version, 1);
+  assert.equal(state.notes[1], "이전에 저장한 모임 메모");
 });
 
 test("UI: goals appear only in a modal and lead to record-driven questions and focused notes", async () => {
@@ -300,7 +391,7 @@ test("UI: goals appear only in a modal and lead to record-driven questions and f
   guide = await openGoals();
   const second = guide.querySelectorAll(".goal-list li")[0] as HTMLElement;
   assert.ok(within(second).getByText("근거 선택하기"));
-  assert.ok(within(second).getByText("근거 0/2개"));
+  assert.ok(within(second).getByText("근거 0/2~3개"));
   assert.equal(state.solved.length, 0);
   await user.click(
     within(
@@ -408,6 +499,7 @@ test(
       within(card).getByRole("radio", { name: new RegExp(first.options![0]) }),
     );
     const savedAnswer = state.drafts[1][first.id].answer;
+    await openEvidencePicker(user, card);
     await user.click(
       within(card).getByRole("button", { name: post.title + " 원문 읽기" }),
     );
@@ -650,12 +742,17 @@ test(
               );
           }
         }
+        await openEvidencePicker(user, card);
         for (const id of evidence) {
-          const label = [
-            ...card.querySelectorAll<HTMLLabelElement>(".proof-options label"),
-          ].find((l) => l.querySelector(".proof-id")?.textContent === id);
-          assert.ok(label, `evidence ${id}`);
-          await click(within(label).getByRole("checkbox"));
+          fireEvent.change(
+            within(card).getByRole("searchbox", { name: "수집한 증거 검색" }),
+            { target: { value: recordById(id)!.title } },
+          );
+          await click(
+            within(card).getByRole("checkbox", {
+              name: `${id} ${recordById(id)!.title}`,
+            }),
+          );
         }
       }
       await click(

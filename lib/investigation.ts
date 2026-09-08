@@ -1,6 +1,13 @@
 import type { Episode, Question } from "./cases";
 import type { Feedback, Progress } from "./game";
 
+export const evidenceLimit = (question: Question) =>
+  question.evidenceMax ?? question.evidenceCount;
+export const evidenceSelectionLabel = (question: Question) =>
+  evidenceLimit(question) === question.evidenceCount
+    ? `${question.evidenceCount}개`
+    : `${question.evidenceCount}~${evidenceLimit(question)}개`;
+
 // Observation prompts guide the player without importing server-side solutions.
 export const investigationGuides: {
   situation: string;
@@ -13,16 +20,17 @@ export const investigationGuides: {
       alias:
         "예전 글과 새 글의 작성자 정보를 비교해 같은 사람의 계정인지 확인하세요.",
       status: "관리자가 올린 전출 안내와 서윤 본인이 남긴 말을 대조하세요.",
-      meeting: "약속을 언급한 글과 댓글에서 장소를 찾으세요.",
+      meeting:
+        "개인 초대와 나중의 취소 공지를 대조해, 어떤 약속까지 취소됐는지 확인하세요.",
     },
   },
   {
     situation:
-      "서윤이 정전 틈에 서버에 침입했다는 설명이 시간 기록과 맞는지 확인해야 합니다.",
+      "정전이 시작된 뒤 자료를 복사했다는 설명이 맞는지 확인해야 합니다. 각 출입증이 같은 사람의 것인지는 아직 모릅니다.",
     tips: {
       time: "C2 카메라의 시계 오차를 확인한 뒤, 화면 시각을 실제 시각으로 바꾸세요.",
       timeline:
-        "기록마다 시계를 먼저 맞추고 출입·복사·이동·정전 순서로 비교하세요.",
+        "각 기록의 시계를 먼저 맞춘 뒤 네 사건을 비교하세요. 서로 다른 출입 수단을 한 사람의 행동으로 합치지 마세요.",
       claim: "정전 시각과 자료를 복사한 시각 중 무엇이 먼저인지 대조하세요.",
     },
   },
@@ -38,11 +46,12 @@ export const investigationGuides: {
   },
   {
     situation:
-      "서윤은 동문을 통과했지만 약속 장소에 오지 않았습니다. 실제로 걸을 수 있었던 길을 복원해야 합니다.",
+      "동문 통과 기록은 있지만 서윤은 약속 장소에 오지 않았습니다. 새로 받은 방문증 배정과 이동 기록을 연결해야 합니다.",
     tips: {
       route:
-        "동문 공사 구간과 출입 가능한 문을 시설 기록·이동 기록에서 대조하세요.",
-      destination: "마지막 도착지의 예전 이름과 현재 쓰임을 구분하세요.",
+        "리더 번호를 연결도의 장소로 바꾼 뒤 실제 통과 순서를 확인하세요. 쪽지의 계획과 인증된 이동을 구분하세요.",
+      destination:
+        "마지막으로 진입한 리더를 찾고, 그 장소의 예전 이름과 현재 쓰임을 대조하세요.",
       trapped: "정전이 나면 그 문을 안에서 열 수 있는지 확인하세요.",
     },
   },
@@ -54,7 +63,8 @@ export const investigationGuides: {
         "START부터 다음 조각으로 이어지는 표식을 따라 END까지 연결하세요.",
       locker:
         "조각을 연결한 순서대로 숫자를 읽으세요. 네 자리 형식을 유지하세요.",
-      original: "수정본과 원본을 구분하는 식별 정보를 확인하세요.",
+      original:
+        "인수 후보에 찍힌 봉인을 찾은 뒤 보존표의 분류와 대조하세요. 묶음 번호만으로 판단할 수 없습니다.",
     },
   },
   {
@@ -63,7 +73,7 @@ export const investigationGuides: {
     tips: {
       editor: "겉에 표시된 작성자 이름과 실제 로그인·수정 계정을 구분하세요.",
       deletion:
-        "폐쇄 안내의 표현과 예약 작업의 구체적인 삭제 범위를 비교하세요.",
+        "예약 작업의 삭제 행과 보존 행을 나누고, 테이블명을 자료 대조표에 연결하세요.",
       vote: "공지에서 주장하는 주민 동의가 확정 회의록에도 있는지 확인하세요.",
     },
   },
@@ -71,8 +81,9 @@ export const investigationGuides: {
     situation:
       "서윤의 현재 상황과 최초 제보자를 확인하고, 지시한 일과 직접 한 일을 구분해야 합니다.",
     tips: {
-      safe: "서윤의 말과 동행자의 확인이 일치하는지 살펴보세요.",
-      sender: "처음 받은 제보 메일의 원본 발신 정보를 확인하세요.",
+      safe: "현재 본인의 설명과 오늘 동석자의 확인이 일치하는지 살펴보세요. 과거 목격만으로 현재를 단정하지 마세요.",
+      sender:
+        "처음 받은 제보 메일의 인증 계정을 이전 자료의 계정 실명표와 대조하세요.",
       instruction:
         "출입 인증과 지시 쪽지가 각각 무엇까지 입증하는지 구분하세요.",
     },
@@ -81,8 +92,10 @@ export const investigationGuides: {
     situation:
       "주민들에게 남길 보고서를 완성해야 합니다. 입증된 돈의 흐름과 삭제 계획을 정리하고, 미확정 사실을 골라내세요.",
     tips: {
-      money: "앞서 발견한 금전 문제를 독립 원본과 다시 대조하세요.",
-      purpose: "폐쇄 예고의 설명과 실제 예약 작업 내용을 비교하세요.",
+      money:
+        "이체 금액과 계좌 소유 업체, 승인자와 대표자의 관계, 공개된 지급처를 각각 출처에 연결하세요.",
+      purpose:
+        "공지의 자료 보관 약속, 실행 작업의 테이블과 백업 설정, 자료 대조표를 함께 확인하세요.",
       remaining:
         "지시·실행·책임 중 아직 직접 확인하지 못한 부분을 구분하세요. 이전 사건의 증거도 사용할 수 있습니다.",
     },
@@ -104,7 +117,11 @@ export function questionPreparation(
   const evidenceCount = new Set(
     (draft?.evidence ?? []).filter((id) => progress.pinned.includes(id)),
   ).size;
-  const ready = answered && evidenceCount === question.evidenceCount;
+  const ready =
+    answered &&
+    evidenceCount >= question.evidenceCount &&
+    evidenceCount <= evidenceLimit(question) &&
+    evidenceCount === draft?.evidence.length;
   const result = feedback?.[question.id];
   const confirmed =
     progress.solved.includes(episode.id) ||

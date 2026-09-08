@@ -12,7 +12,12 @@ import { walkthrough } from "./walkthrough";
 import { communityPosts } from "../lib/community";
 import { episodeStories } from "../lib/stories";
 import { existsSync } from "node:fs";
-import { investigationGuides, questionPreparation } from "../lib/investigation";
+import {
+  evidenceLimit,
+  evidenceSelectionLabel,
+  investigationGuides,
+  questionPreparation,
+} from "../lib/investigation";
 import { caseThreads, inquiryDiscovered } from "../lib/narrative";
 import {
   canReadRecord,
@@ -64,6 +69,18 @@ test("the community is a persistent dated world; private sources arrive separate
       "old posts never disappear",
     );
     assert.ok(board.every((r) => r.date <= worldDate(progress)));
+    for (const record of board)
+      for (const comment of record.comments ?? [])
+        if (comment.date) {
+          assert.ok(
+            comment.date >= record.date,
+            `${record.id}: comment precedes post`,
+          );
+          assert.ok(
+            comment.date <= worldDate(progress),
+            `${record.id}: future comment`,
+          );
+        }
     assert.deepEqual(
       communityRecords({ ...progress, active: 1 }),
       board,
@@ -248,7 +265,9 @@ test("the complete campaign has 8 stories, 48 core records, 64 community posts, 
     }
     for (const q of ep.questions) {
       const [answer, ids] = walkthrough[ep.id - 1][q.id];
-      assert.equal(ids.length, q.evidenceCount);
+      assert.ok(
+        ids.length >= q.evidenceCount && ids.length <= evidenceLimit(q),
+      );
       for (const id of ids) {
         assert.ok(recordById(id), id);
         assert.ok(Number(id.split("-")[0]) <= ep.id);
@@ -263,7 +282,7 @@ test("the complete campaign has 8 stories, 48 core records, 64 community posts, 
   }
 });
 
-test("full campaign: mistakes, exact supporting evidence, hints, reopen, persistence roundtrip, both endings, reset", () => {
+test("full campaign: mistakes, complete supporting evidence, hints, reopen, persistence roundtrip, both endings, reset", () => {
   let p = freshProgress();
   assert.deepEqual(gameView(p).resolutions, {});
   assert.throws(() => applyAction(p, { type: "visit", episode: 8 }));
@@ -378,4 +397,505 @@ test("numeric answers preserve leading zeroes and require complete values", () =
     ]).time.answer,
     false,
   );
+});
+
+// These counterarguments were written from the documents, independently of the
+// server's proof definition. A plausible conclusion still needs every link.
+const counterarguments: [
+  number,
+  string,
+  string | string[],
+  string[],
+  string,
+][] = [
+  [
+    1,
+    "alias",
+    "우편함",
+    ["1-2", "1-5"],
+    "an invitation does not link the old and new account IDs",
+  ],
+  [
+    1,
+    "status",
+    "관리소장이 우편물을 수거했다",
+    ["1-1", "1-2"],
+    "a pre-announcement plan is not a later direct denial",
+  ],
+  [
+    1,
+    "meeting",
+    "작은도서관",
+    ["1-5"],
+    "the earlier invitation needs the later cancellation exception",
+  ],
+  [
+    2,
+    "time",
+    "20:28",
+    ["2-1", "2-3"],
+    "the clock offset and reader still need the target camera scene",
+  ],
+  [
+    2,
+    "timeline",
+    ["관리동 문 열림", "정전 시작", "자료 복사 완료", "동문 출구 통과"],
+    ["2-1", "2-6"],
+    "an offset and an outage witness omit copy and exit timestamps",
+  ],
+  [
+    2,
+    "claim",
+    "회색 외투를 입은 사람이 있었다",
+    ["2-4", "2-6"],
+    "two outage sources cannot establish when copying finished",
+  ],
+  [
+    3,
+    "difference",
+    "4800000",
+    ["3-1", "3-3"],
+    "a payment amount is not proof that no further construction charge exists",
+  ],
+  [
+    3,
+    "recipient",
+    "한결설비",
+    ["3-2", "3-4"],
+    "an invoice and vendor registration cannot establish an executed transfer",
+  ],
+  [
+    3,
+    "approver",
+    "오유진",
+    ["3-1", "3-3"],
+    "payment approval alone does not identify the recipient company's director",
+  ],
+  [
+    4,
+    "route",
+    ["관리동", "동문 안뜰", "구 세탁실", "지하 연결통로"],
+    ["4-1", "4-5"],
+    "a planned route is not observed movement",
+  ],
+  [
+    4,
+    "destination",
+    "달빛세탁소",
+    ["4-1", "4-5"],
+    "a map plus intent cannot establish actual arrival",
+  ],
+  [
+    4,
+    "trapped",
+    "그렇다, 모든 문이 전기로만 열린다",
+    ["4-2", "4-4"],
+    "external road closure cannot identify the visitor's final entrance",
+  ],
+  [
+    5,
+    "fragments",
+    ["A", "B", "C", "D"],
+    ["5-2", "5-3", "5-4"],
+    "the missing paper leaves an unverified link",
+  ],
+  [
+    5,
+    "locker",
+    "0138",
+    ["5-1", "5-2", "5-3", "5-4"],
+    "knowing the reading rule does not supply the missing digit",
+  ],
+  [
+    5,
+    "original",
+    "E24",
+    ["5-5", "5-6"],
+    "classification and intake history omit the candidates' seal mapping",
+  ],
+  [
+    6,
+    "editor",
+    "오유진",
+    ["6-1", "6-3"],
+    "a public byline and account directory do not show the final editor",
+  ],
+  [
+    6,
+    "deletion",
+    "장터 사진 전체",
+    ["6-1", "6-5"],
+    "raw table identifiers need the data dictionary",
+  ],
+  [
+    6,
+    "vote",
+    "글이 9시에 게시되었다",
+    ["6-1", "6-6"],
+    "a resident's memory of equipment is not a certified vote record",
+  ],
+  [
+    7,
+    "safe",
+    "정전으로 기록실에 갇혀 있다",
+    ["7-3", "7-6"],
+    "an intermediary's public post does not replace the subject's current statement",
+  ],
+  [
+    7,
+    "sender",
+    "윤해진",
+    ["7-5", "3-5"],
+    "a similar job description does not map an authenticated account to a name",
+  ],
+  [
+    7,
+    "instruction",
+    "직접 차단기를 내렸다는 사실까지 확정된다",
+    ["7-1", "2-4"],
+    "entry and an anonymous manual operation do not establish the instruction",
+  ],
+  [
+    8,
+    "money",
+    "480만 원 전액이 현금으로 사라졌다",
+    ["8-1", "3-1", "3-2"],
+    "the invoice cannot establish the account holder and director relationship",
+  ],
+  [
+    8,
+    "purpose",
+    "주민 전원 합의에 따른 전체 게시글 삭제",
+    ["6-1", "6-2", "8-2"],
+    "more audit data does not supply the meaning of raw table identifiers",
+  ],
+  [
+    8,
+    "remaining",
+    "예약 삭제가 중지됐다는 사실",
+    ["7-1", "7-2", "8-5"],
+    "entry confirmation cannot replace the limits of the actual operation log",
+  ],
+];
+
+test("all 24 deductions reject a plausible wrong conclusion and an incomplete argument", async (t) => {
+  assert.equal(counterarguments.length, 24);
+  assert.equal(
+    new Set(counterarguments.map(([ep, id]) => `${ep}/${id}`)).size,
+    24,
+  );
+  for (const [ep, id, wrongAnswer, incomplete, reason] of counterarguments) {
+    await t.test(`${ep}/${id}: ${reason}`, () => {
+      const [answer, complete] = walkthrough[ep - 1][id];
+      const question = episodes[ep - 1].questions.find((q) => q.id === id)!;
+      if (question.kind === "choice")
+        assert.ok(question.options!.includes(wrongAnswer as string));
+      if (question.kind === "order")
+        assert.deepEqual(
+          [...question.options!].sort(),
+          [...wrongAnswer].sort(),
+        );
+      const wrong = grade(
+        ep,
+        { [id]: { answer: wrongAnswer, evidence: complete } },
+        complete,
+      )[id];
+      assert.equal(wrong.answer, false);
+      assert.equal(
+        wrong.evidence,
+        true,
+        "answer correctness is independent of complete source coverage",
+      );
+      const missing = grade(
+        ep,
+        { [id]: { answer, evidence: incomplete } },
+        incomplete,
+      )[id];
+      assert.equal(missing.answer, true);
+      assert.equal(missing.evidence, false, reason);
+      assert.ok(missing.evidenceMessage);
+      assert.doesNotMatch(
+        missing.evidenceMessage!,
+        /\b[1-8]-\d+\b/,
+        "feedback must not reveal an answer-key document ID",
+      );
+    });
+  }
+});
+
+const alternativeArguments: [number, string, string[], string][] = [
+  [
+    1,
+    "status",
+    ["1-1", "1-2", "1-3"],
+    "identity corroboration may accompany the contradiction",
+  ],
+  [
+    2,
+    "time",
+    ["2-2", "2-3"],
+    "the unique entrance event can be matched to the standard-time reader",
+  ],
+  [
+    2,
+    "time",
+    ["2-1", "2-2", "2-3"],
+    "clock calibration and event correlation may be used together",
+  ],
+  [
+    2,
+    "timeline",
+    ["2-3", "2-6"],
+    "independent eyewitness timing can date the outage",
+  ],
+  [
+    2,
+    "timeline",
+    ["2-1", "2-2", "2-3", "2-6"],
+    "calibrated footage may corroborate the complete timeline",
+  ],
+  [
+    2,
+    "claim",
+    ["2-3", "2-5", "2-6"],
+    "the announcement can accompany the reader and eyewitness contradiction",
+  ],
+  [
+    3,
+    "difference",
+    ["3-2", "3-5"],
+    "the original author's correction request independently states the public combined total",
+  ],
+  [
+    3,
+    "recipient",
+    ["3-2", "3-3", "3-4", "3-5"],
+    "extra relevant accounting sources do not invalidate the transfer-to-owner proof",
+  ],
+  [
+    3,
+    "approver",
+    ["3-4", "3-5"],
+    "a signed acknowledgement of both approvals can replace the public approval field",
+  ],
+  [
+    4,
+    "route",
+    ["4-1", "4-2", "4-3", "4-5"],
+    "construction and intent may corroborate authenticated movement",
+  ],
+  [
+    5,
+    "fragments",
+    ["5-2", "5-3", "5-4", "5-5"],
+    "the four physical pieces replace the transcribed table",
+  ],
+  [
+    5,
+    "fragments",
+    ["5-1", "5-2", "5-3", "5-4", "5-5", "5-6"],
+    "all relevant sources fit the documented maximum",
+  ],
+  [
+    5,
+    "locker",
+    ["5-1", "5-2", "5-3", "5-4", "5-5"],
+    "the rule plus every physical digit is a complete original-source proof",
+  ],
+  [
+    8,
+    "money",
+    ["3-1", "3-3", "3-4"],
+    "the retained original accounting packet still proves the final claim",
+  ],
+  [
+    8,
+    "money",
+    ["3-3", "3-4", "3-5"],
+    "the correction request proves the public misstatement and acknowledgement",
+  ],
+  [
+    8,
+    "money",
+    ["8-1", "3-4", "3-5"],
+    "the new bank confirmation works with retained ownership and publication sources",
+  ],
+  [
+    8,
+    "purpose",
+    ["6-1", "6-3", "6-5"],
+    "the original schedule remains a valid source of the planned operation",
+  ],
+  [
+    8,
+    "purpose",
+    ["6-1", "6-2", "6-3", "6-5", "8-2"],
+    "a full audit trail may corroborate promise, dictionary and actual targets",
+  ],
+  [
+    8,
+    "remaining",
+    ["2-4", "7-1", "7-2", "8-5"],
+    "entry proof may accompany the explicit limits of execution attribution",
+  ],
+];
+
+test("alternative and corroborating proofs remain valid through draft validation and preparation", () => {
+  for (const [ep, id, evidence, reason] of alternativeArguments) {
+    const [answer] = walkthrough[ep - 1][id];
+    let p = {
+      ...freshProgress(),
+      active: ep,
+      solved: episodes.slice(0, ep - 1).map((e) => e.id),
+    };
+    for (const source of evidence)
+      p = applyAction(p, { type: "pin", record: source }).progress;
+    p = applyAction(p, {
+      type: "draft",
+      question: id,
+      draft: { answer, evidence },
+    }).progress;
+    const q = episodes[ep - 1].questions.find(
+      (question) => question.id === id,
+    )!;
+    assert.equal(
+      questionPreparation(episodes[ep - 1], q, p).ready,
+      true,
+      reason,
+    );
+    const result = applyAction(p, { type: "solve" }).feedback![id];
+    assert.equal(result.answer, true, reason);
+    assert.equal(result.evidence, true, reason);
+  }
+});
+
+test("relevant but incomplete fact collections and unrelated padding cannot pass proof coverage", () => {
+  const incomplete: [number, string, string[]][] = [
+    [8, "money", ["3-1", "3-4", "3-5"]], // No bank execution evidence.
+    [8, "money", ["3-3", "3-4", "8-1"]], // No public presentation of the payment.
+    [8, "purpose", ["6-1", "6-2", "6-3"]], // No actual scheduled operation.
+    [8, "purpose", ["6-1", "6-5", "8-2"]], // Two schedules but no table dictionary.
+    [5, "locker", ["5-1", "5-6", "5-7"]], // Complete proof plus unrelated community content.
+    [8, "money", ["8-1", "3-1", "3-4", "8-6"]], // Complete proof plus unrelated community content.
+  ];
+  for (const [ep, id, evidence] of incomplete) {
+    const [answer] = walkthrough[ep - 1][id];
+    assert.equal(
+      grade(ep, { [id]: { answer, evidence } }, evidence)[id].evidence,
+      false,
+    );
+  }
+  const [answer, evidence] = walkthrough[4].locker;
+  assert.equal(
+    grade(
+      5,
+      { locker: { answer, evidence: [...evidence, evidence[0]] } },
+      evidence,
+    ).locker.evidence,
+    false,
+  );
+  assert.equal(
+    grade(5, { locker: { answer, evidence } }, [evidence[0]]).locker.evidence,
+    false,
+  );
+});
+
+test("version-one solved episodes and old incomplete drafts survive the stronger proof requirements", () => {
+  const legacy = {
+    ...freshProgress(),
+    started: true,
+    active: 8,
+    solved: [1, 2, 3, 4, 5, 6, 7],
+    read: ["1-5", "8-1"],
+    pinned: ["1-5", "8-1"],
+    notes: { 1: "예전 약속 메모", 8: "공개 범위는 아직 결정하지 않음" },
+    drafts: {
+      1: { meeting: { answer: "동문 건너편 달빛세탁소", evidence: ["1-5"] } },
+      8: { money: { answer: walkthrough[7].money[0], evidence: ["8-1"] } },
+    },
+  };
+  const before = structuredClone(legacy);
+  const restored = applyAction(JSON.parse(JSON.stringify(legacy)), {
+    type: "visit",
+    episode: 8,
+  }).progress;
+  assert.deepEqual(restored, before);
+  assert.equal(restored.version, 1);
+  const first = episodes[0].questions.find((q) => q.id === "meeting")!;
+  assert.equal(
+    questionPreparation(episodes[0], first, restored).confirmed,
+    true,
+    "a completed old case is never revoked",
+  );
+  const final = episodes[7].questions.find((q) => q.id === "money")!;
+  const preparation = questionPreparation(episodes[7], final, restored);
+  assert.equal(preparation.answered, true);
+  assert.equal(preparation.ready, false);
+  assert.equal(preparation.evidenceCount, 1);
+  assert.equal(evidenceSelectionLabel(final), "3~5개");
+  const failed = applyAction(restored, { type: "solve", episode: 8 });
+  assert.deepEqual(failed.progress.solved, before.solved);
+  assert.deepEqual(failed.progress.notes, before.notes);
+  assert.deepEqual(failed.progress.drafts, before.drafts);
+  assert.equal(failed.feedback!.money.answer, true);
+  assert.equal(failed.feedback!.money.evidence, false);
+  assert.match(failed.feedback!.money.evidenceMessage!, /3~5개/);
+});
+
+test("numeric formats accept real amounts without silently deleting arbitrary currency text from codes", () => {
+  for (const amount of [
+    "3,000,000원",
+    "₩3,000,000",
+    "300만 원",
+    "３００００００",
+    "03000000",
+  ]) {
+    assert.equal(
+      grade(3, { difference: { answer: amount, evidence: ["3-1", "3-2"] } }, [
+        "3-1",
+        "3-2",
+      ]).difference.answer,
+      true,
+      amount,
+    );
+  }
+  for (const amount of [
+    "3원000000",
+    "3,00,0000",
+    "3000000원원",
+    "-3000000",
+    "3000000원 extra",
+  ]) {
+    assert.equal(
+      grade(3, { difference: { answer: amount, evidence: [] } }, []).difference
+        .answer,
+      false,
+      amount,
+    );
+  }
+  for (const answer of ["0318원", "0,318", "318", "0318 extra"]) {
+    assert.equal(
+      grade(5, { locker: { answer, evidence: [] } }, []).locker.answer,
+      false,
+      answer,
+    );
+  }
+  for (const answer of ["20:14원", "20:1,4", "20:14 extra", "27:14"]) {
+    assert.equal(
+      grade(2, { time: { answer, evidence: [] } }, []).time.answer,
+      false,
+      answer,
+    );
+  }
+});
+
+test("case hints guide a method without publishing answer strings, evidence IDs, or choice positions", () => {
+  const hints = episodes.flatMap((ep) => ep.hints);
+  assert.equal(hints.length, 24);
+  for (const hint of hints) {
+    assert.doesNotMatch(
+      hint,
+      /\b[1-8]-\d+\b|첫 번째 선택|세 번째 선택|C\s*→\s*A|0318|E42|3000000/,
+    );
+  }
 });

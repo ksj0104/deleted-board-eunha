@@ -40,7 +40,7 @@ const post = (
   author: string,
   date: string,
   paragraphs: string[],
-  replies: [string, string][],
+  replies: [string, string, string?][],
   photo?: PhotoKey,
   status?: string,
 ): RecordFile => ({
@@ -50,10 +50,12 @@ const post = (
   author,
   date,
   paragraphs,
-  comments: replies.map(([author, text], i) => ({
+  comments: replies.map(([author, text, replyDate], i) => ({
     author,
     text,
-    date: `${date.slice(0, 5)} ${String(Math.min(23, Number(date.slice(6, 8)) + 1)).padStart(2, "0")}:${String(12 + i * 11).padStart(2, "0")}`,
+    date:
+      replyDate ??
+      `${date.slice(0, 5)} ${String(Math.min(23, Number(date.slice(6, 8)) + 1)).padStart(2, "0")}:${String(12 + i * 11).padStart(2, "0")}`,
   })),
   ...(photo ? { photo: communityImages[photo] } : {}),
   ...(status ? { status } : {}),
@@ -96,7 +98,7 @@ export const communityPosts: RecordFile[] = [
     ],
     [
       ["느린아침", "화분도 여쭤보려다가 마지막 줄 읽었네요. 의자 줄 서봅니다."],
-      ["초록화분", "느린아침 님께 전달했습니다. 편하게 쓰세요!"],
+      ["초록화분", "느린아침 님께 전달했습니다. 편하게 쓰세요!", "03.17 19:35"],
     ],
     "chair",
     "나눔 완료",
@@ -233,7 +235,7 @@ export const communityPosts: RecordFile[] = [
     "느린아침",
     "03.19 11:30",
     [
-      "어제 초록화분 님께 받은 의자에 앉아 커피 마셨어요. 방석까지 챙겨 주셔서 감사합니다.",
+      "며칠 전 초록화분 님께 받은 의자에 앉아 커피 마셨어요. 방석까지 챙겨 주셔서 감사합니다.",
       "딱 한 자리만 필요했는데 신기하게 시기가 맞았네요. 저도 안 쓰는 물건 정리해서 조만간 나눔 글 올리겠습니다.",
     ],
     [
@@ -393,7 +395,7 @@ export const communityPosts: RecordFile[] = [
     [
       [
         "자전거초보",
-        "제 체인이네요. 퇴근하면 짧게 감아두겠습니다. 알려주셔서 감사해요.",
+        "제 체인이네요. 방금 퇴근길에 짧게 감아두었습니다. 알려주셔서 감사해요.",
       ],
     ],
     undefined,
@@ -460,7 +462,13 @@ export const communityPosts: RecordFile[] = [
       "며칠 전 박스 접기 글에 댓글 달았던 사람입니다. 안 쓰는 가위가 있어서 끈으로 묶어 분리수거장 선반에 두었어요.",
       "테이프 자르는 용도이고 사용 후에는 제자리에 걸어 주세요. 아이들 손에 닿지 않도록 위쪽에 걸었습니다.",
     ],
-    [["정리왕", "행동으로 옮겨주셔서 감사합니다. 아침에 잘 썼어요."]],
+    [
+      [
+        "정리왕",
+        "행동으로 옮겨주셔서 감사합니다. 아침에 잘 썼어요.",
+        "03.20 08:42",
+      ],
+    ],
   ),
 
   post(
@@ -570,6 +578,7 @@ export const communityPosts: RecordFile[] = [
       [
         "초록화분",
         "사진 잘 써주셔서 제가 더 기쁩니다. 다음에는 활짝 핀 모습도 찍어볼게요.",
+        "03.21 08:37",
       ],
     ],
     "flowers",
@@ -584,7 +593,13 @@ export const communityPosts: RecordFile[] = [
       "공동현관 택배 카트는 여러 주민이 함께 사용합니다. 사용하신 뒤에는 현관 안쪽 표시된 자리에 돌려놓아 주세요.",
       "바퀴가 뻑뻑한 카트는 점검 중입니다. 무거운 짐을 한 번에 많이 싣지 말고 나누어 옮겨 주시면 좋겠습니다.",
     ],
-    [["택배요정", "며칠 전 바퀴 소리 문의했는데 확인해 주셔서 감사합니다."]],
+    [
+      [
+        "택배요정",
+        "며칠 전 바퀴 소리 문의했는데 확인해 주셔서 감사합니다.",
+        "03.21 08:54",
+      ],
+    ],
   ),
 
   post(
@@ -742,6 +757,7 @@ export const communityPosts: RecordFile[] = [
       [
         "우편함",
         "공사 마무리 확인 후 안내 올리겠습니다. 먼저 정리해 주셔서 고맙습니다.",
+        "03.23 14:55",
       ],
     ],
     "books",

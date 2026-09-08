@@ -15,10 +15,16 @@ import {
   GameErrorContext,
 } from "./components";
 import CommunityBoard, { ResidentAvatar } from "./CommunityBoard";
+import EvidencePicker from "./EvidencePicker";
 import StoryPrologue from "./StoryPrologue";
 import { recordStats } from "../lib/community";
 import InvestigationGuide from "./InvestigationGuide";
-import { investigationGuides, questionPreparation } from "../lib/investigation";
+import {
+  evidenceLimit,
+  evidenceSelectionLabel,
+  investigationGuides,
+  questionPreparation,
+} from "../lib/investigation";
 import { caseThreads, inquiryDiscovered } from "../lib/narrative";
 import InvestigationInbox from "./InvestigationInbox";
 import {
@@ -69,6 +75,7 @@ export default function Game() {
   const [showGoals, setShowGoals] = useState(false);
   const [selected, setSelected] = useState<RecordFile | null>(null);
   const [recordWindow, setRecordWindow] = useState(0);
+  const [boardSession, setBoardSession] = useState(0);
   const [help, setHelp] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [showReset, setShowReset] = useState(false);
@@ -582,7 +589,7 @@ export default function Game() {
                 </div>
               )}
               <CommunityBoard
-                key={p.started ? "playing" : "new"}
+                key={`${boardSession}/${p.started ? "playing" : "new"}`}
                 progress={p}
                 onOpen={openRecord}
                 onStory={() => setShowPrologue(true)}
@@ -941,7 +948,7 @@ export default function Game() {
                         : q.kind === "order"
                           ? "위아래 화살표로 순서 정하기"
                           : "답 하나 선택"}{" "}
-                      → ② 아래에서 근거 {q.evidenceCount}개 선택
+                      → ② 아래에서 근거 {evidenceSelectionLabel(q)} 선택
                     </span>
                   </div>
                   {q.kind === "choice" && (
@@ -1024,89 +1031,39 @@ export default function Game() {
                       ))}
                     </ol>
                   )}
-                  <div className="proof-heading">
-                    <span>
-                      뒷받침하는 증거{" "}
-                      <strong>
-                        {
-                          draft.evidence.filter((id) => p.pinned.includes(id))
-                            .length
-                        }
-                        /{q.evidenceCount}
-                      </strong>
-                    </span>
-                    <small>정확히 {q.evidenceCount}개 선택</small>
-                  </div>
-                  <p className="proof-help">
-                    수집한 글 중 이 답을 직접 뒷받침하는 기록에 체크하세요.
-                    ‘원문’을 눌러 다시 읽을 수 있습니다.
-                  </p>
-                  {evidence.length ? (
-                    <div className="proof-options">
-                      {evidence.map((r) => {
-                        const checked =
-                          draft.evidence.includes(r.id) &&
-                          p.pinned.includes(r.id);
-                        return (
-                          <div className="proof-option" key={r.id}>
-                            <label className={checked ? "selected" : ""}>
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                disabled={
-                                  blocking > 0 ||
-                                  (!checked &&
-                                    draft.evidence.filter((id) =>
-                                      p.pinned.includes(id),
-                                    ).length >= q.evidenceCount)
-                                }
-                                onChange={() => {
-                                  saveDraft(q, (current) => {
-                                    const valid = current.evidence;
-                                    const removing = valid.includes(r.id);
-                                    if (
-                                      !removing &&
-                                      valid.length >= q.evidenceCount
-                                    )
-                                      return current;
-                                    return {
-                                      ...current,
-                                      evidence: removing
-                                        ? valid.filter((id) => id !== r.id)
-                                        : [...valid, r.id],
-                                    };
-                                  });
-                                }}
-                              />
-                              <span className="proof-id">{r.id}</span>
-                              <span>{r.title}</span>
-                            </label>
-                            <button
-                              className="proof-read"
-                              aria-label={r.title + " 원문 읽기"}
-                              onClick={() => openRecord(r)}
-                            >
-                              원문 ↗
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <button
-                      className="collect-prompt"
-                      onClick={() => goTab("board")}
-                    >
-                      게시판에서 증거 수집하기 ↗
-                    </button>
-                  )}
+                  <EvidencePicker
+                    records={evidence}
+                    selectedIds={draft.evidence}
+                    minimum={q.evidenceCount}
+                    maximum={evidenceLimit(q)}
+                    disabled={blocking > 0}
+                    onRead={openRecord}
+                    onCollect={() => goTab("board")}
+                    onToggle={(id) => {
+                      saveDraft(q, (current) => {
+                        const removing = current.evidence.includes(id);
+                        if (
+                          !removing &&
+                          current.evidence.length >= evidenceLimit(q)
+                        )
+                          return current;
+                        return {
+                          ...current,
+                          evidence: removing
+                            ? current.evidence.filter((record) => record !== id)
+                            : [...current.evidence, id],
+                        };
+                      });
+                    }}
+                  />
                   {result && !(result.answer && result.evidence) && (
                     <p className="feedback" role="status">
                       {!result.answer
                         ? "가설을 기록과 다시 대조해 보세요."
                         : "가설은 맞습니다."}{" "}
                       {!result.evidence &&
-                        `이 가설을 직접 입증하는 증거 ${q.evidenceCount}개를 다시 선택해 주세요.`}
+                        (result.evidenceMessage ??
+                          `이 가설을 입증하는 증거 ${evidenceSelectionLabel(q)}를 다시 선택해 주세요.`)}
                     </p>
                   )}
                 </section>
@@ -1542,6 +1499,7 @@ export default function Game() {
                   const data = await send({ type: "reset" });
                   if (data) {
                     setShowReset(false);
+                    setBoardSession((session) => session + 1);
                     setNotes({});
                     setNoteDirty(false);
                     setTab("board");

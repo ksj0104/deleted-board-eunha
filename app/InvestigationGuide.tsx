@@ -2,7 +2,11 @@
 import React from "react";
 import type { Episode, RecordFile } from "../lib/cases";
 import type { Feedback, Progress } from "../lib/game";
-import { investigationGuides, questionPreparation } from "../lib/investigation";
+import {
+  evidenceSelectionLabel,
+  investigationGuides,
+  questionPreparation,
+} from "../lib/investigation";
 import { mainCase, caseThreads, inquiryDiscovered } from "../lib/narrative";
 
 export default function InvestigationGuide({
@@ -86,9 +90,12 @@ export default function InvestigationGuide({
                       : "○ 아직 추리 중"}
                   </span>
                   <span>
-                    근거 {states[i].evidenceCount}/{q.evidenceCount}개
+                    근거 {states[i].evidenceCount}/{evidenceSelectionLabel(q)}
                   </span>
                 </div>
+                {!solved && feedback?.[q.id]?.evidenceMessage && (
+                  <p className="feedback">{feedback[q.id].evidenceMessage}</p>
+                )}
                 <button
                   className="text-button"
                   aria-label={`${inquiry.title} 조사 노트 열기`}
