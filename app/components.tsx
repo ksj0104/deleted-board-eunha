@@ -6,6 +6,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useSound } from "./sound-context";
 export const GameErrorContext = createContext("");
 let openDialogs = 0;
 let previousOverflow = "";
@@ -44,6 +45,11 @@ export function Dialog({
     released: boolean;
   } | null>(null);
   const error = useContext(GameErrorContext);
+  const sound = useSound();
+  const close = () => {
+    sound?.play("close");
+    onClose();
+  };
   useEffect(() => {
     const d = ref.current;
     if (openDialogs++ === 0) {
@@ -77,7 +83,7 @@ export function Dialog({
       aria-label={label}
       onCancel={(e) => {
         e.preventDefault();
-        onClose();
+        close();
       }}
       onPointerDownCapture={(e) => {
         // A drag can produce a click targeted at the dialog itself. Remember
@@ -128,10 +134,10 @@ export function Dialog({
       onClick={(e) => {
         const press = backdropPress.current;
         backdropPress.current = null;
-        if (press?.released && e.button === 0 && isBackdropEvent(e)) onClose();
+        if (press?.released && e.button === 0 && isBackdropEvent(e)) close();
       }}
     >
-      <button className="close-button" aria-label="닫기" onClick={onClose}>
+      <button className="close-button" aria-label="닫기" onClick={close}>
         ×
       </button>
       {error && (

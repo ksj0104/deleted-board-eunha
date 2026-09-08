@@ -28,6 +28,7 @@ export default function InvestigationInbox({
           ...deliveryRecords(d.episode).flatMap((r) => [
             r.title,
             ...r.paragraphs,
+            ...(r.surveillance?.frames.map((frame) => frame.alt) ?? []),
           ]),
         ]
           .join(" ")

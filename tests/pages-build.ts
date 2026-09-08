@@ -94,11 +94,19 @@ try {
     ...episodes.map(
       (episode) => `story/${String(episode.id).padStart(2, "0")}.webp`,
     ),
+    ...episodes.flatMap((episode) =>
+      episode.records.flatMap(
+        (record) => record.surveillance?.frames.map((frame) => frame.src) ?? [],
+      ),
+    ),
     "og.png",
   ]) {
     const imageResponse: Response = await fetch(new URL(path, pageUrl));
     assert.equal(imageResponse.status, 200, path);
-    assert.match(imageResponse.headers.get("content-type")!, /image\/(webp|png)/);
+    assert.match(
+      imageResponse.headers.get("content-type")!,
+      /image\/(webp|png)/,
+    );
     assert.ok((await imageResponse.arrayBuffer()).byteLength > 10000, path);
   }
   const source = await (await fetch(scripts[0].src)).text();
@@ -171,7 +179,7 @@ try {
     first.window.close();
   }
   console.log(
-    `PASS Pages: ${base} — HTML, CSS/JS, 14 game images, share image, production bundle start and browser save restoration; no API calls`,
+    `PASS Pages: ${base} — HTML, CSS/JS, 16 game images including CCTV, share image, production bundle start and browser save restoration; no API calls`,
   );
 } finally {
   if (server.listening)

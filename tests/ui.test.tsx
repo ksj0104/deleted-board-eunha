@@ -13,6 +13,7 @@ import { walkthrough } from "./walkthrough";
 import { caseThreads, mainCase } from "../lib/narrative";
 import { communityRecords, deliveries, isPublicRecord } from "../lib/world";
 import Game from "../app/Game";
+import { SOUND_STORAGE_KEY } from "../lib/sound";
 import {
   createLocalGameClient,
   LOCAL_SAVE_KEY,
@@ -43,6 +44,87 @@ const { render, screen, within, waitFor, cleanup, fireEvent, act } =
   await import("@testing-library/react");
 const { default: userEvent } = await import("@testing-library/user-event");
 afterEach(() => cleanup());
+
+test("UI: sound controls are reachable, persist volume and mute, and leave the game save intact", async () => {
+  dom.window.localStorage.removeItem(SOUND_STORAGE_KEY);
+  dom.window.localStorage.removeItem(LOCAL_SAVE_KEY);
+  const client = createLocalGameClient(() => dom.window.localStorage);
+  await client.request({ type: "start" });
+  const user = userEvent.setup({ document: dom.window.document });
+  const first = render(<Game client={client} />);
+  await user.click(await screen.findByRole("button", { name: "효과음 설정" }));
+  const dialog = screen.getByRole("dialog", { name: "효과음 설정" });
+  fireEvent.change(
+    within(dialog).getByRole("slider", { name: "효과음 음량" }),
+    { target: { value: "20" } },
+  );
+  await user.click(
+    within(dialog).getByRole("checkbox", { name: "효과음 사용" }),
+  );
+  assert.equal(
+    within(dialog)
+      .getByRole("button", { name: "소리 미리 듣기" })
+      .hasAttribute("disabled"),
+    true,
+  );
+  await user.click(within(dialog).getByRole("button", { name: "닫기" }));
+  assert.ok(screen.getByRole("button", { name: "효과음 켜기" }));
+  first.unmount();
+  render(
+    <Game client={createLocalGameClient(() => dom.window.localStorage)} />,
+  );
+  assert.ok(await screen.findByRole("button", { name: "효과음 켜기" }));
+  assert.deepEqual(
+    JSON.parse(dom.window.localStorage.getItem(SOUND_STORAGE_KEY)!),
+    { enabled: false, volume: 0.2 },
+  );
+  assert.equal((await client.request()).progress.started, true);
+  dom.window.localStorage.removeItem(SOUND_STORAGE_KEY);
+  dom.window.localStorage.removeItem(LOCAL_SAVE_KEY);
+});
+
+test("UI: CCTV evidence uses image captures with selection and zoom while keeping collection and deductions available", async () => {
+  const progress = {
+    ...freshProgress(),
+    started: true,
+    solved: [1],
+    active: 2,
+    introduced: [1, 2],
+  };
+  dom.window.localStorage.setItem(LOCAL_SAVE_KEY, JSON.stringify(progress));
+  const client = createLocalGameClient(() => dom.window.localStorage);
+  const user = userEvent.setup({ document: dom.window.document });
+  render(<Game client={client} />);
+  await screen.findByRole("heading", { name: "은하아파트 주민마당" });
+  const record = recordById("2-2")!;
+  await openSourceRecord(user, record);
+  const original = screen.getByRole("dialog", { name: record.title });
+  assert.equal(
+    original.querySelector(".document-body"),
+    null,
+    "CCTV is read visually, without the old transcription paragraphs",
+  );
+  assert.ok(within(original).getByRole("img", { name: /20:21:00/ }));
+  await user.click(within(original).getByRole("button", { name: "캡처 02" }));
+  assert.ok(within(original).getByRole("img", { name: /20:28:00/ }));
+  await user.click(
+    within(original).getByRole("button", { name: "선택한 CCTV 캡처 확대" }),
+  );
+  const zoom = screen.getByRole("dialog", { name: "CCTV 캡처 확대" });
+  await user.click(
+    within(zoom).getByRole("button", { name: "세부 확대 150%" }),
+  );
+  assert.ok(zoom.querySelector(".cctv-inspection.zoomed"));
+  await user.click(within(zoom).getByRole("button", { name: "캡처 01" }));
+  assert.ok(within(zoom).getByRole("img", { name: /20:21:00/ }));
+  await user.click(within(zoom).getByRole("button", { name: "닫기" }));
+  assert.ok(screen.getByRole("dialog", { name: record.title }));
+  await user.click(within(original).getByRole("button", { name: /증거 수집/ }));
+  await waitFor(async () =>
+    assert.ok((await client.request()).progress.pinned.includes("2-2")),
+  );
+  dom.window.localStorage.removeItem(LOCAL_SAVE_KEY);
+});
 
 test("UI: GitHub Pages play saves evidence, answers and notes in browser storage and restores without API calls", async () => {
   dom.window.localStorage.removeItem(LOCAL_SAVE_KEY);
@@ -840,8 +922,18 @@ test(
             null,
             "private files are documents, not social posts",
           );
-        for (const paragraph of r.paragraphs)
-          assert.ok(within(dialog).getByText(paragraph));
+        if (r.surveillance) {
+          const capture = within(dialog).getByRole("img", {
+            name: r.surveillance.frames[0].alt,
+          });
+          assert.equal(
+            capture.getAttribute("src"),
+            r.surveillance.frames[0].src,
+          );
+        } else {
+          for (const paragraph of r.paragraphs)
+            assert.ok(within(dialog).getByText(paragraph));
+        }
         if (r.attachment)
           assert.equal(
             within(dialog).getAllByRole("row").length,

@@ -32,6 +32,10 @@ import {
 } from "../lib/investigation";
 import { caseThreads, inquiryDiscovered } from "../lib/narrative";
 import InvestigationInbox from "./InvestigationInbox";
+import SoundControls from "./SoundControls";
+import CctvViewer from "./CctvViewer";
+import { SoundContext, useGameSound } from "./sound-context";
+import type { SoundPlayer } from "../lib/sound";
 import {
   deliveries,
   deliveryRecords,
@@ -63,6 +67,22 @@ export default function Game({
 }: {
   client?: GameClient;
 }) {
+  const sound = useGameSound();
+  return (
+    <SoundContext.Provider value={sound}>
+      <GameScreen client={client} sound={sound} />
+    </SoundContext.Provider>
+  );
+}
+
+function GameScreen({
+  client,
+  sound,
+}: {
+  client: GameClient;
+  sound: SoundPlayer;
+}) {
+  const clickIntent = useRef(0);
   const [view, setView] = useState<View | null>(null);
   const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
@@ -160,6 +180,30 @@ export default function Game({
                 }
               : action;
             const data = await client.request(requestAction);
+            if (action.type === "pin")
+              sound.play(
+                data.progress.pinned.includes(action.record!)
+                  ? "collect"
+                  : "release",
+              );
+            else if (action.type === "like")
+              sound.play(
+                data.progress.liked?.includes(action.record!)
+                  ? "select"
+                  : "deselect",
+              );
+            else if (action.type === "hint") sound.play("notice");
+            else if (action.type === "start" || action.type === "intro")
+              sound.play("open");
+            else if (action.type === "ending") sound.play("success");
+            else if (action.type === "solve" && data.feedback)
+              sound.play(
+                Object.values(data.feedback).every(
+                  (f) => f.answer && f.evidence,
+                )
+                  ? "success"
+                  : "retry",
+              );
             savedView.current = data;
             setView(data);
             if (action.type === "reset") updateDraftEdits(() => ({}));
@@ -173,6 +217,8 @@ export default function Game({
           } catch (e) {
             // A superseded request must not mark the newer selection as failed.
             if (edit && !isLatestEdit()) return null;
+            if (!["read", "note", "draft"].includes(action.type))
+              sound.play("retry");
             if (edit)
               updateDraftEdits((edits) => ({
                 ...edits,
@@ -192,7 +238,7 @@ export default function Game({
       queue.current = job;
       return job;
     },
-    [client, updateDraftEdits],
+    [client, sound, updateDraftEdits],
   );
   const persistDraft = (episode: number, question: string, draft: Draft) => {
     const edit: DraftEdit = {
@@ -236,6 +282,9 @@ export default function Game({
     return () => window.removeEventListener("beforeunload", guard);
   }, [pending, noteDirty, unsavedDrafts.length]);
   const goTab = (next: Tab) => {
+    sound.play(
+      next === "evidence" || next === "deductions" ? "open" : "select",
+    );
     flushNote();
     setQuery("");
     setFocusedQuestion(undefined);
@@ -248,12 +297,14 @@ export default function Game({
     mainRef.current?.focus();
   };
   const openQuestion = (id?: string) => {
+    sound.play("open");
     flushNote();
     setQuery("");
     setFocusedQuestion(id);
     setTool("deductions");
   };
   const visit = async (id: number, destination: Tab = "board") => {
+    sound.play("open");
     flushNote();
     const data = await send({ type: "visit", episode: id });
     if (data) {
@@ -271,6 +322,7 @@ export default function Game({
     }
   };
   const openRecord = (r: RecordFile) => {
+    sound.play("open");
     setRecordWindow((n) => n + 1);
     setSelected(r);
     if (!view?.progress.read.includes(r.id))
@@ -359,16 +411,17 @@ export default function Game({
       draftEditsRef.current[`${e.id}/${q.id}`]?.draft ??
       savedView.current?.progress.drafts[e.id]?.[q.id] ??
       makeDraft(q);
-    persistDraft(
-      e.id,
-      q.id,
-      update({
-        ...latest,
-        evidence: latest.evidence.filter((id) => p.pinned.includes(id)),
-      }),
+    const next = update({
+      ...latest,
+      evidence: latest.evidence.filter((id) => p.pinned.includes(id)),
+    });
+    sound.play(
+      next.evidence.length < latest.evidence.length ? "deselect" : "select",
     );
+    persistDraft(e.id, q.id, next);
   };
   const solve = async () => {
+    sound.play("verify");
     const data = await send({ type: "solve", episode: e.id });
     if (data) {
       setFeedback(data.feedback ?? null);
@@ -404,7 +457,26 @@ export default function Game({
   };
   return (
     <GameErrorContext.Provider value={error}>
-      <div className={`app-shell ${fontLarge ? "large-text" : ""}`}>
+      <div
+        className={`app-shell ${fontLarge ? "large-text" : ""}`}
+        onPointerDownCapture={() => sound.unlock()}
+        onKeyDownCapture={() => sound.unlock()}
+        onClickCapture={() => {
+          clickIntent.current = sound.getIntent();
+          sound.unlock();
+        }}
+        onClick={(event) => {
+          const target = event.target as Element;
+          const button = target.closest?.("button, summary");
+          if (
+            button &&
+            !button.hasAttribute("disabled") &&
+            !button.closest('[data-sound="silent"]') &&
+            clickIntent.current === sound.getIntent()
+          )
+            sound.play("select");
+        }}
+      >
         <a className="skip-link" href="#main">
           본문으로 건너뛰기
         </a>
@@ -493,15 +565,20 @@ export default function Game({
               은하아파트 <span>/</span> 사건 {pad(e.id)} <span>/</span>{" "}
               <strong>{tabs.find((t) => t.id === tab)?.label}</strong>
             </div>
-            <div className="save-status" role="status">
-              <span className={error ? "status-dot error-dot" : "status-dot"} />
-              {error || failedDrafts.length
-                ? "저장 확인 필요"
-                : noteDirty
-                  ? "메모 저장 대기"
-                  : pending || unsavedDrafts.length
-                    ? "기록 저장 중…"
-                    : "자동 저장됨"}
+            <div className="topbar-tools">
+              <SoundControls />
+              <div className="save-status" role="status">
+                <span
+                  className={error ? "status-dot error-dot" : "status-dot"}
+                />
+                {error || failedDrafts.length
+                  ? "저장 확인 필요"
+                  : noteDirty
+                    ? "메모 저장 대기"
+                    : pending || unsavedDrafts.length
+                      ? "기록 저장 중…"
+                      : "자동 저장됨"}
+              </div>
             </div>
           </header>
           {error && (
@@ -812,7 +889,11 @@ export default function Game({
                   )}
                   <span className="category">{r.board}</span>
                   <h3>{r.title}</h3>
-                  <p>{r.paragraphs[0]}</p>
+                  <p>
+                    {r.surveillance
+                      ? `${r.surveillance.camera} 보관 캡처 ${r.surveillance.frames.length}장 · 원문에서 이미지 확인`
+                      : r.paragraphs[0]}
+                  </p>
                   <footer>
                     {r.author}
                     <span>열어보기 ↗</span>
@@ -1142,11 +1223,15 @@ export default function Game({
                 <span className="post-status">{selected.status}</span>
               )}
             </div>
-            <div className="document-body">
-              {selected.paragraphs.map((text, i) => (
-                <p key={i}>{text}</p>
-              ))}
-            </div>
+            {selected.surveillance ? (
+              <CctvViewer footage={selected.surveillance} />
+            ) : (
+              <div className="document-body">
+                {selected.paragraphs.map((text, i) => (
+                  <p key={i}>{text}</p>
+                ))}
+              </div>
+            )}
             {selected.photo && (
               <figure className="document-photo">
                 <a
@@ -1243,6 +1328,7 @@ export default function Game({
               <div className="post-reactions">
                 <button
                   className="secondary"
+                  data-sound="silent"
                   aria-pressed={(p.liked ?? []).includes(selected.id)}
                   disabled={pending > 0}
                   onClick={() => send({ type: "like", record: selected.id })}
@@ -1262,6 +1348,7 @@ export default function Game({
               </span>
               <button
                 disabled={pending > 0}
+                data-sound="silent"
                 className={
                   p.pinned.includes(selected.id) ? "secondary" : "primary"
                 }
@@ -1301,7 +1388,10 @@ export default function Game({
                 void send({ type: "intro", episode: e.id }).then((data) => {
                   if (data) setShowPrologue(false);
                 });
-              else setShowPrologue(false);
+              else {
+                sound.play("close");
+                setShowPrologue(false);
+              }
             }}
           />
         )}
@@ -1363,6 +1453,7 @@ export default function Game({
             ))}
             <button
               className="primary full"
+              data-sound="silent"
               disabled={level >= 3 || pending > 0}
               onClick={() => send({ type: "hint", episode: e.id })}
             >

@@ -2,7 +2,8 @@
 .community-board,
 .incoming-mail-notice,
 .investigation-inbox,
-.dialog:has(.document-title) {
+.dialog:has(.document-title),
+.dialog:has(.cctv-enlarged) {
   --text: #283c37;
   --muted: #53685e;
   --line: #d2dbd2;
@@ -1318,6 +1319,106 @@ select:focus-visible {
   font-size: 11px;
 }
 /* Open records use the same paper, ink and controls as the resident board. */
+.cctv-viewer {
+  margin: 24px 0;
+}
+.cctv-viewer > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font: 11px/1.6 var(--sans);
+  margin-bottom: 12px;
+}
+.cctv-frame-buttons {
+  display: flex;
+  gap: 7px;
+  margin-bottom: 12px;
+}
+.cctv-frame-buttons button {
+  color: #355e4c;
+  background: #fffef9;
+  border: 1px solid #708572;
+  border-radius: 4px;
+  min-height: 40px;
+  padding: 7px 14px;
+  font-size: 12px;
+}
+.cctv-frame-buttons button[aria-pressed="true"] {
+  color: #fffef9;
+  background: #355e4c;
+  border-color: #355e4c;
+}
+.cctv-preview {
+  display: block;
+  width: 100%;
+  padding: 0;
+  overflow: hidden;
+  background: #121a17;
+  border: 1px solid #53675c;
+  border-radius: 5px;
+  cursor: zoom-in;
+}
+.cctv-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.cctv-preview > span {
+  display: block;
+  padding: 10px;
+  font-size: 12px;
+  color: #deeadf;
+  background: #20372c;
+}
+.cctv-caption {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.8;
+  margin: 12px 0 0;
+}
+.dialog.wide:has(.cctv-enlarged) {
+  width: min(1380px, calc(100% - 24px));
+  max-height: 94dvh;
+  padding: 28px 22px 20px;
+  background: var(--paper);
+  border-color: var(--line);
+  border-radius: 9px;
+}
+.cctv-enlarged h2 {
+  margin: 0 38px 17px 0;
+  font: 600 20px/1.5 var(--sans);
+}
+.cctv-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.cctv-toolbar .cctv-frame-buttons {
+  margin: 0;
+}
+.cctv-inspection {
+  max-height: 67dvh;
+  overflow: auto;
+  background: #121a17;
+  border: 1px solid #53675c;
+  border-radius: 4px;
+}
+.cctv-inspection img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 67dvh;
+  object-fit: contain;
+}
+.cctv-inspection.zoomed img {
+  width: 150%;
+  max-width: none;
+  max-height: none;
+}
 .dialog:has(.document-title) {
   background: var(--paper);
   border-color: var(--line);

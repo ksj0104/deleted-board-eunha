@@ -196,6 +196,11 @@ assert.match(card.headers.get("content-type") ?? "", /image\/png/);
 for (const path of [
   ...Object.values(communityImages).map((a) => a.src),
   ...episodes.map((e) => `/story/${String(e.id).padStart(2, "0")}.webp`),
+  ...episodes.flatMap((episode) =>
+    episode.records.flatMap(
+      (record) => record.surveillance?.frames.map((frame) => frame.src) ?? [],
+    ),
+  ),
 ]) {
   const img = await fetch(`${base}/${path.replace(/^\//, "")}`);
   assert.equal(img.status, 200, path);
@@ -203,7 +208,7 @@ for (const path of [
   assert.ok((await img.arrayBuffer()).byteLength > 10000, path);
 }
 console.log(
-  "PASS HTTP: all 14 community/prologue images and persisted introduction/reaction state",
+  "PASS HTTP: all 16 community/prologue/CCTV images and persisted introduction/reaction state",
 );
 const assets = [
   ...html.matchAll(

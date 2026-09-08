@@ -70,6 +70,7 @@ export default function StoryPrologue({
           )}
           <button
             className="primary full"
+            data-sound="silent"
             disabled={pending}
             onClick={onContinue}
           >

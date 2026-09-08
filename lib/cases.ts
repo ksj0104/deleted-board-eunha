@@ -8,6 +8,7 @@ export type RecordFile = {
   paragraphs: string[];
   comments?: { author: string; text: string; date?: string }[];
   photo?: { src: string; alt: string; caption: string };
+  surveillance?: { camera: string; frames: { src: string; alt: string }[] };
   status?: string;
   attachment?: { title: string; columns: string[]; rows: string[][] };
   deleted?: boolean;
@@ -221,14 +222,29 @@ export const episodes: Episode[] = [
       ),
       record(
         "2-2",
-        "영상 판독",
-        "C2 보관 화면의 문자 판독",
+        "CCTV 보관함",
+        "C2 보관 화면 · 3월 18일",
         "기록 보관기",
         "03.18 20:35",
         [
-          "C2 화면 표시 20:21 — 회색 외투를 입은 사람이 관리동 문을 연다. 얼굴과 출입카드 글자는 판독할 수 없다.",
-          "화면 표시 20:28 — 같은 외투의 사람이 동문 방향 복도로 나간다. 이 카메라의 시각은 원본 그대로다.",
+          "관리동 복도 카메라 C2에서 추출한 보관 캡처 두 장입니다. 화면에 표시된 시각은 원본 그대로 유지했습니다.",
+          "캡처를 선택해 장면을 비교할 수 있습니다. 원문을 열고 이미지를 확대해 화면 표시와 복도의 모습을 살펴보세요.",
         ],
+        {
+          surveillance: {
+            camera: "C2",
+            frames: [
+              {
+                src: "cctv/c2-20260318-202100.webp",
+                alt: "C2 화면 표시 2026-03-18 20:21:00. 회색 외투의 인물이 관리동 표지 아래 열린 문을 잡고 있다. 얼굴과 카드 글자는 식별할 수 없다. 오른쪽 복도에 동문 방향 표지가 있다.",
+              },
+              {
+                src: "cctv/c2-20260318-202800.webp",
+                alt: "같은 C2 카메라의 화면 표시 2026-03-18 20:28:00. 관리동 문은 닫혀 있고 같은 회색 외투의 인물이 동문 방향 복도로 걸어간다. 얼굴은 보이지 않는다.",
+              },
+            ],
+          },
+        },
       ),
       record(
         "2-3",
