@@ -393,7 +393,7 @@ function GameScreen({
     inquiryDiscovered(e, q, p),
   );
   const search = query.trim().toLocaleLowerCase();
-  const source = evidence;
+  const source = [...evidence].reverse();
   const visible = source.filter(
     (r) =>
       !search ||
@@ -877,7 +877,8 @@ function GameScreen({
             </div>
             <div className="evidence-toolbar">
               <p>
-                전 사건에서 수집한 기록 <strong>{evidence.length}</strong>개
+                전 사건에서 수집한 기록 <strong>{evidence.length}</strong>개 ·
+                최근 수집순
               </p>
               <Search query={query} onChange={setQuery} />
             </div>
