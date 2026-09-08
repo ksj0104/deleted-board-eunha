@@ -8,7 +8,7 @@ import {
   gameView,
   unlocked,
 } from "../lib/game";
-import { walkthrough } from "./walkthrough";
+import { walkthrough, restoredPaperOrder } from "./walkthrough";
 import { communityPosts } from "../lib/community";
 import { episodeStories } from "../lib/stories";
 import { existsSync } from "node:fs";
@@ -143,7 +143,7 @@ test("inquiries emerge from relevant records, preserve existing drafts and remai
         );
         assert.equal(
           inquiryDiscovered(episode, q, { ...untouched, read: [id] }),
-          true,
+          !recordById(id)?.shredded,
         );
       }
       assert.equal(inquiryDiscovered(episode, q, untouched), false);
@@ -303,8 +303,15 @@ test("full campaign: mistakes, complete supporting evidence, hints, reopen, pers
     p = failed.progress;
     for (let i = 0; i < 4; i++) p = applyAction(p, { type: "hint" }).progress;
     assert.equal(p.hints[ep.id], 3);
-    for (const r of ep.records)
+    for (const r of ep.records) {
+      if (r.shredded)
+        p = applyAction(p, {
+          type: "restore",
+          record: r.id,
+          pieces: restoredPaperOrder,
+        }).progress;
       p = applyAction(p, { type: "pin", record: r.id }).progress;
+    }
     for (const [question, [answer, evidence]] of Object.entries(
       walkthrough[ep.id - 1],
     )) {
@@ -752,8 +759,15 @@ test("alternative and corroborating proofs remain valid through draft validation
       active: ep,
       solved: episodes.slice(0, ep - 1).map((e) => e.id),
     };
-    for (const source of evidence)
+    for (const source of evidence) {
+      if (recordById(source)?.shredded)
+        p = applyAction(p, {
+          type: "restore",
+          record: source,
+          pieces: restoredPaperOrder,
+        }).progress;
       p = applyAction(p, { type: "pin", record: source }).progress;
+    }
     p = applyAction(p, {
       type: "draft",
       question: id,

@@ -9,7 +9,7 @@ import {
   type RecordFile,
 } from "../lib/cases";
 import { freshProgress, applyAction, gameView, type Action } from "../lib/game";
-import { walkthrough } from "./walkthrough";
+import { walkthrough, restoredPaperOrder } from "./walkthrough";
 import { caseThreads, mainCase } from "../lib/narrative";
 import { communityRecords, deliveries, isPublicRecord } from "../lib/world";
 import Game from "../app/Game";
@@ -126,6 +126,129 @@ test("UI: CCTV evidence uses image captures with selection and zoom while keepin
   dom.window.localStorage.removeItem(LOCAL_SAVE_KEY);
 });
 
+test("UI: shredded paper supports keyboard, drag, save retry, reopening, reconstruction and collection", async () => {
+  const progress = {
+    ...freshProgress(),
+    started: true,
+    solved: [1, 2],
+    active: 3,
+    introduced: [1, 2, 3],
+  };
+  dom.window.localStorage.setItem(LOCAL_SAVE_KEY, JSON.stringify(progress));
+  let fail = false;
+  const storage = {
+    getItem: (key: string) => dom.window.localStorage.getItem(key),
+    setItem: (key: string, value: string) => {
+      if (fail) throw new Error("quota");
+      dom.window.localStorage.setItem(key, value);
+    },
+  };
+  const client = createLocalGameClient(() => storage);
+  const user = userEvent.setup({ document: dom.window.document });
+  const record = recordById("3-5")!;
+  const mounted = render(<Game client={client} />);
+  await screen.findByRole("heading", { name: "은하아파트 주민마당" });
+  await openSourceRecord(user, record);
+  let dialog = screen.getByRole("dialog", { name: record.title });
+  assert.ok(
+    (
+      within(dialog).getByRole("button", {
+        name: /증거 수집/,
+      }) as HTMLButtonElement
+    ).disabled,
+  );
+  assert.equal(
+    within(dialog).queryByText(record.shredded!.transcript[0]),
+    null,
+  );
+  assert.equal(dialog.querySelector(".record-inquiries"), null);
+  await user.click(
+    within(dialog).getByRole("button", { name: "복원 확인" }),
+  );
+  await waitFor(() =>
+    assert.ok(dialog.textContent?.includes("아직 글줄이 이어지지 않습니다")),
+  );
+  assert.equal(
+    (await client.request()).progress.restorations?.[record.id]?.complete,
+    undefined,
+  );
+
+  const before = dom.window.localStorage.getItem(LOCAL_SAVE_KEY);
+  fail = true;
+  let slots = [...dialog.querySelectorAll<HTMLButtonElement>(".shred-strip")];
+  slots[0].focus();
+  await user.keyboard("{Enter}");
+  slots[2].focus();
+  await user.keyboard("{Enter}");
+  await within(dialog).findByText("배치 저장 실패 · 다시 저장해 주세요");
+  assert.equal(dom.window.localStorage.getItem(LOCAL_SAVE_KEY), before);
+  assert.equal(
+    dialog.querySelector<HTMLButtonElement>(".shred-strip")!.dataset.piece,
+    "cedar",
+    "keyboard movement is immediate even if saving fails",
+  );
+  fail = false;
+  await user.click(
+    within(dialog).getByRole("button", { name: "배치 다시 저장" }),
+  );
+  await within(dialog).findByText("배치 저장됨");
+  const partial = (await client.request()).progress.restorations![record.id]
+    .order;
+  await user.click(within(dialog).getByRole("button", { name: "닫기" }));
+  await openSourceRecord(user, record);
+  dialog = screen.getByRole("dialog", { name: record.title });
+  slots = [...dialog.querySelectorAll<HTMLButtonElement>(".shred-strip")];
+  assert.deepEqual(
+    slots.map((el) => el.dataset.piece),
+    partial,
+  );
+  const dataTransfer = { effectAllowed: "move", setData: () => {} };
+  fireEvent.dragStart(slots[1], { dataTransfer });
+  fireEvent.dragOver(slots[4], { dataTransfer });
+  fireEvent.drop(slots[4], { dataTransfer });
+  fireEvent.dragEnd(slots[1], { dataTransfer });
+  await within(dialog).findByText("배치 저장됨");
+  const dragged = [...partial];
+  [dragged[1], dragged[4]] = [dragged[4], dragged[1]];
+  assert.deepEqual(
+    (await client.request()).progress.restorations![record.id].order,
+    dragged,
+  );
+  assert.ok(
+    screen.getByRole("dialog", { name: record.title }).hasAttribute("open"),
+  );
+  await user.click(within(dialog).getByRole("button", { name: "닫기" }));
+  await openSourceRecord(user, record);
+  dialog = screen.getByRole("dialog", { name: record.title });
+  await reconstructPaper(user, dialog);
+  assert.ok(within(dialog).getByText(record.shredded!.transcript[0]));
+  assert.ok(dialog.querySelector(".record-inquiries"));
+  await user.click(within(dialog).getByRole("button", { name: /증거 수집/ }));
+  await waitFor(async () =>
+    assert.ok((await client.request()).progress.pinned.includes(record.id)),
+  );
+  mounted.unmount();
+  render(<Game client={createLocalGameClient(() => storage)} />);
+  await screen.findByRole("heading", { name: "은하아파트 주민마당" });
+  await openSourceRecord(user, record);
+  dialog = screen.getByRole("dialog", { name: record.title });
+  assert.ok(within(dialog).getByText("✓ 복원된 단서"));
+  await user.click(
+    within(dialog).getByRole("button", { name: "조각 다시 맞춰보기" }),
+  );
+  assert.equal(
+    within(dialog).queryByText(record.shredded!.transcript[0]),
+    null,
+  );
+  assert.ok((await client.request()).progress.pinned.includes(record.id));
+  await reconstructPaper(user, dialog);
+  assert.equal(
+    (await client.request()).progress.restorations![record.id].complete,
+    true,
+  );
+  dom.window.localStorage.removeItem(LOCAL_SAVE_KEY);
+});
+
 test("UI: GitHub Pages play saves evidence, answers and notes in browser storage and restores without API calls", async () => {
   dom.window.localStorage.removeItem(LOCAL_SAVE_KEY);
   const previousFetch = globalThis.fetch;
@@ -235,6 +358,28 @@ async function openSourceRecord(
       screen.getByRole("button", { name: `${record.title} 열기` }),
     );
   }
+}
+
+async function reconstructPaper(
+  user: ReturnType<typeof userEvent.setup>,
+  dialog: HTMLElement,
+) {
+  for (let target = 0; target < restoredPaperOrder.length; target++) {
+    const slots = [
+      ...dialog.querySelectorAll<HTMLButtonElement>(".shred-strip"),
+    ];
+    const source = slots.findIndex(
+      (button) => button.dataset.piece === restoredPaperOrder[target],
+    );
+    if (source !== target) {
+      await user.click(slots[source]);
+      await user.click(slots[target]);
+    }
+  }
+  await user.click(
+    within(dialog).getByRole("button", { name: "복원 확인" }),
+  );
+  await within(dialog).findByText("✓ 복원된 단서");
 }
 
 function delayedSaves() {
@@ -922,7 +1067,10 @@ test(
             null,
             "private files are documents, not social posts",
           );
-        if (r.surveillance) {
+        if (r.shredded) {
+          await reconstructPaper(user, dialog);
+          assert.ok(within(dialog).getByText(r.shredded.transcript[0]));
+        } else if (r.surveillance) {
           const capture = within(dialog).getByRole("img", {
             name: r.surveillance.frames[0].alt,
           });

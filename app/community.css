@@ -1319,6 +1319,200 @@ select:focus-visible {
   font-size: 11px;
 }
 /* Open records use the same paper, ink and controls as the resident board. */
+.shred-workbench {
+  margin: 26px 0;
+}
+.shred-tag {
+  font: 11px/1.7 var(--sans);
+  color: #355e4c;
+  letter-spacing: 0.05em;
+}
+.shred-intro h2 {
+  font: 600 21px/1.6 var(--sans);
+  margin: 8px 0 15px;
+}
+.shred-intro p,
+.shred-instructions,
+.shred-hint,
+.shred-result p {
+  font-size: 13px;
+  line-height: 1.95;
+  color: #465a50;
+}
+.shred-intro p {
+  margin: 8px 0;
+}
+.shred-instructions {
+  margin: 20px 0 12px;
+}
+.shred-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.shred-toolbar > span {
+  margin-right: auto;
+  color: #53685e;
+  font-size: 11px;
+}
+.shred-hint {
+  padding: 12px 16px;
+  border-left: 3px solid #789383;
+  background: #e5ecdf;
+}
+.shred-selection {
+  min-height: 38px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: #355e4c;
+  margin: 15px 0 4px;
+}
+.shred-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 18px 12px;
+  border: 1px solid #627b6c;
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 25px, #ffffff05 25px 26px),
+    #294237;
+  scrollbar-color: #8ca797 #294237;
+}
+.shred-strips {
+  display: grid;
+  grid-template-columns: repeat(6, 104px);
+  gap: 7px;
+  width: max-content;
+  margin: auto;
+}
+.shred-strip {
+  width: 104px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #e1ebe1;
+  font: 12px/1.6 var(--sans);
+  cursor: grab;
+  border-radius: 3px;
+  touch-action: pan-x pan-y;
+}
+.shred-strip:active {
+  cursor: grabbing;
+}
+.shred-strip:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.shred-strip:focus-visible,
+.shred-strip.selected {
+  outline: 3px solid #eacb77;
+  outline-offset: 3px;
+}
+.shred-position,
+.shred-piece-label {
+  display: block;
+  padding: 4px 0;
+  color: #e1ebe1;
+}
+.shred-position {
+  color: #bbd0c0;
+  font-variant-numeric: tabular-nums;
+}
+.shred-paper {
+  display: block;
+  padding: 24px 0 19px;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(93deg, #a58d5410 0 1px, transparent 1px 5px),
+    #faf3df;
+  box-shadow: 1px 3px 5px #0004;
+  border-left: 1px dashed #bcb196;
+  border-right: 1px dashed #bcb196;
+  color: #343d37;
+  text-align: left;
+}
+.shred-strip.selected .shred-paper {
+  background-color: #fff8e5;
+}
+.shred-fragment {
+  display: block;
+  height: 31px;
+  white-space: pre;
+  overflow: hidden;
+  font:
+    16px/31px "Courier New",
+    "Malgun Gothic",
+    monospace;
+  border-bottom: 1px solid #9a9c872f;
+}
+.shred-fragment.row-0 {
+  font-size: 21px;
+  font-weight: 700;
+  height: 43px;
+  border-bottom: 2px solid #52645a;
+}
+.shred-fragment.row-1 {
+  font-size: 13px;
+  height: 41px;
+  line-height: 37px;
+}
+.shred-fragment.row-8 {
+  border-top: 1px solid #667b6d;
+  margin-top: 12px;
+  font-weight: 700;
+}
+.shred-rule {
+  display: block;
+  border-bottom: 2px solid #546c59;
+  margin-top: 15px;
+}
+.edge-0 {
+  border-left: 5px solid #e7dec5;
+}
+.edge-5 {
+  border-right: 5px solid #e7dec5;
+}
+.shred-strips.assembled {
+  gap: 0;
+}
+.assembled .shred-paper {
+  box-shadow: none;
+  border-color: #c5baa0;
+}
+.assembled .shred-position,
+.assembled .shred-piece-label {
+  visibility: hidden;
+  height: 8px;
+  padding: 0;
+}
+.shred-verify {
+  margin-top: 18px;
+  min-height: 44px;
+}
+.shred-message {
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.9;
+  color: #355e4c;
+}
+.shred-result {
+  margin-top: 20px;
+  padding: 15px 18px;
+  border: 1px solid #a3b69f;
+  background: #e5ecdf;
+  border-radius: 5px;
+}
+.shred-result strong {
+  color: #355e4c;
+  font-size: 14px;
+}
+.shred-result p {
+  margin: 7px 0 0;
+}
+.shred-transcript {
+  margin: 18px 0;
+}
 .cctv-viewer {
   margin: 24px 0;
 }

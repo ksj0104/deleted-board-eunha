@@ -1,5 +1,7 @@
 import type { Episode, Question } from "./cases";
 import type { Progress } from "./game";
+import { recordById } from "./cases";
+import { recordRestored } from "./restoration";
 
 export const mainCase = {
   question:
@@ -314,8 +316,9 @@ export function inquiryDiscovered(
   return (
     progress.solved.includes(episode.id) ||
     !!progress.drafts[episode.id]?.[question.id] ||
-    caseThreads[episode.id - 1].inquiries[question.id].discoveredBy.some((id) =>
-      progress.read.includes(id),
+    caseThreads[episode.id - 1].inquiries[question.id].discoveredBy.some(
+      (id) =>
+        progress.read.includes(id) && recordRestored(recordById(id)!, progress),
     )
   );
 }

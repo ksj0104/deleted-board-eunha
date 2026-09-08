@@ -1,4 +1,11 @@
-import { episodes, recordById } from "./cases";
+import { allRecords, episodes, recordById } from "./cases";
+import {
+  isRestoredOrder,
+  recordRestored,
+  restorationFor,
+  validPieceOrder,
+  type Restoration,
+} from "./restoration";
 import { solutions, resolutions, endings, type Solution } from "./solutions";
 import { canReadRecord } from "./world";
 import { evidenceLimit, evidenceSelectionLabel } from "./investigation";
@@ -13,6 +20,7 @@ export type Progress = {
   pinned: string[];
   liked?: string[];
   introduced?: number[];
+  restorations?: Record<string, Restoration>;
   notes: Record<string, string>;
   drafts: Record<string, Record<string, Draft>>;
   hints: Record<string, number>;
@@ -27,6 +35,7 @@ export type Action = {
   draft?: Draft;
   text?: string;
   ending?: string;
+  pieces?: string[];
 };
 export type Feedback = Record<
   string,
@@ -41,6 +50,7 @@ export const freshProgress = (): Progress => ({
   pinned: [],
   liked: [],
   introduced: [],
+  restorations: {},
   notes: {},
   drafts: {},
   hints: {},
@@ -132,6 +142,11 @@ export function applyAction(
   action: Action,
 ): { progress: Progress; feedback?: Feedback } {
   const p: Progress = structuredClone(current);
+  p.restorations ??= Object.fromEntries(
+    allRecords
+      .filter((record) => record.shredded && current.read.includes(record.id))
+      .map((record) => [record.id, restorationFor(record, current)]),
+  );
   const ep = action.episode ?? p.active;
   if (!Number.isInteger(ep) || ep < 1 || ep > unlocked(p))
     throw new Error(
@@ -144,7 +159,26 @@ export function applyAction(
   } else if (action.type === "intro")
     p.introduced = [...new Set([...(p.introduced ?? []), ep])];
   else if (action.type === "visit") p.active = ep;
-  else if (
+  else if (action.type === "arrange" || action.type === "restore") {
+    const r = recordById(action.record ?? "");
+    if (!r?.shredded || !canReadRecord(r, p))
+      throw new Error("복원할 수 없는 기록입니다.");
+    if (!validPieceOrder(r.shredded, action.pieces))
+      throw new Error("회수한 조각을 빠짐없이 한 번씩 배치해 주세요.");
+    if (
+      action.type === "restore" &&
+      !isRestoredOrder(r.shredded, action.pieces)
+    )
+      throw new Error(
+        "아직 글줄이 이어지지 않습니다. 금액의 쉼표와 회신 문장의 연결을 살펴보세요.",
+      );
+    if (!recordRestored(r, p))
+      p.restorations[r.id] = {
+        order: [...action.pieces],
+        complete: action.type === "restore",
+      };
+    if (!p.read.includes(r.id)) p.read.push(r.id);
+  } else if (
     action.type === "read" ||
     action.type === "pin" ||
     action.type === "like"
@@ -152,6 +186,8 @@ export function applyAction(
     const r = recordById(action.record ?? "");
     if (!r || !canReadRecord(r, p))
       throw new Error("열람할 수 없는 기록입니다.");
+    if (action.type === "pin" && !recordRestored(r, p))
+      throw new Error("종이 조각을 복원한 뒤 증거로 수집해 주세요.");
     if (!p.read.includes(r.id)) p.read.push(r.id);
     if (action.type === "like")
       p.liked = (p.liked ?? []).includes(r.id)

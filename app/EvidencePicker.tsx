@@ -51,6 +51,8 @@ export default function EvidencePicker({
           record.title,
           record.author,
           ...record.paragraphs,
+          // Only collected records reach this picker; shredded originals have been restored.
+          ...(record.shredded?.transcript ?? []),
           ...(record.comments ?? []).flatMap((comment) => [
             comment.author,
             comment.text,

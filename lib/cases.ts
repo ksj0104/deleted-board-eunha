@@ -1,4 +1,5 @@
 import { communityPosts } from "./community";
+import { settlementScraps, type ShreddedDocument } from "./restoration";
 export type RecordFile = {
   id: string;
   board: string;
@@ -9,6 +10,7 @@ export type RecordFile = {
   comments?: { author: string; text: string; date?: string }[];
   photo?: { src: string; alt: string; caption: string };
   surveillance?: { camera: string; frames: { src: string; alt: string }[] };
+  shredded?: ShreddedDocument;
   status?: string;
   attachment?: { title: string; columns: string[]; rows: string[][] };
   deleted?: boolean;
@@ -423,14 +425,15 @@ export const episodes: Episode[] = [
       ),
       record(
         "3-5",
-        "쪽지 보관함",
-        "결산서를 다시 올려도 될까요",
-        "오유진 → 조민석",
+        "회수 문서",
+        "파쇄함에서 회수한 결산 수정 쪽지",
+        "입주자 감사 · 회수본",
         "03.17 16:50",
         [
-          "소장님, 제가 입력한 원본에는 한결 180만 / 다온 300만으로 분리되어 있었습니다. 공개본에서는 전부 한결로 합쳐져 있어요.",
-          "조민석의 회신: “수정하지 마세요. 두 건 모두 제가 승인한 결산입니다. 원본 파일은 제가 정리하겠습니다.”",
+          "3월 19일 기록 보존 요청을 받은 입주자 감사가 지하 파쇄함의 폐지를 봉인했습니다. 3월 20일, 같은 용지의 절단면을 대조해 이 출력물의 조각을 여섯 묶음으로 분류했습니다. 위 작성 시각은 종이에 남은 원문 시각입니다.",
+          "서윤이 남긴 파쇄기 목격담을 따라 회수한 자료입니다. 찢긴 글줄과 표의 선을 이어 결산 수정 요청과 회신을 읽어 주세요. 이 종이만으로 누가 파쇄기를 작동했는지 알 수는 없습니다.",
         ],
+        { shredded: settlementScraps },
       ),
       record(
         "3-6",

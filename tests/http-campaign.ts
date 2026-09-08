@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { episodes } from "../lib/cases";
-import { walkthrough } from "./walkthrough";
+import { walkthrough, restoredPaperOrder } from "./walkthrough";
 import { communityImages } from "../lib/community";
 import type { Feedback, gameView } from "../lib/game";
 const base = process.env.GAME_TEST_URL ?? "http://localhost:3000";
@@ -60,6 +60,12 @@ for (const ep of episodes) {
   assert.equal(incorrect.progress.solved.length, ep.id - 1);
   for (const r of ep.records) {
     await request({ type: "read", record: r.id });
+    if (r.shredded)
+      await request({
+        type: "restore",
+        record: r.id,
+        pieces: restoredPaperOrder,
+      });
     await request({ type: "pin", record: r.id });
   }
   // Concrete alternative readings and counterexamples, independent of the

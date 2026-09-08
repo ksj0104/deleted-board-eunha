@@ -1,6 +1,7 @@
 import { episodes, recordById } from "./cases";
 import { applyAction, freshProgress, gameView, type Progress } from "./game";
 import type { GameClient } from "./game-client";
+import { isRestoredOrder, validPieceOrder } from "./restoration";
 
 // GitHub project sites share an origin, so this key belongs only to this game.
 export const LOCAL_SAVE_KEY = "eunha.deleted-board.progress.v1";
@@ -41,6 +42,18 @@ function isProgress(value: unknown): value is Progress {
     value.active <= Math.min(episodes.length, value.solved.length + 1) &&
     recordIds(value.read) &&
     recordIds(value.pinned) &&
+    (value.restorations === undefined ||
+      (object(value.restorations) &&
+        Object.entries(value.restorations).every(([id, saved]) => {
+          const doc = recordById(id)?.shredded;
+          return (
+            !!doc &&
+            object(saved) &&
+            typeof saved.complete === "boolean" &&
+            validPieceOrder(doc, saved.order) &&
+            (!saved.complete || isRestoredOrder(doc, saved.order))
+          );
+        }))) &&
     (value.liked === undefined || recordIds(value.liked)) &&
     (value.introduced === undefined ||
       (Array.isArray(value.introduced) && value.introduced.every(episodeId))) &&

@@ -34,6 +34,12 @@ import { caseThreads, inquiryDiscovered } from "../lib/narrative";
 import InvestigationInbox from "./InvestigationInbox";
 import SoundControls from "./SoundControls";
 import CctvViewer from "./CctvViewer";
+import ShreddedDocument from "./ShreddedDocument";
+import {
+  readableParagraphs,
+  recordRestored,
+  restorationFor,
+} from "../lib/restoration";
 import { SoundContext, useGameSound } from "./sound-context";
 import type { SoundPlayer } from "../lib/sound";
 import {
@@ -192,6 +198,7 @@ function GameScreen({
                   ? "select"
                   : "deselect",
               );
+            else if (action.type === "restore") sound.play("success");
             else if (action.type === "hint") sound.play("notice");
             else if (action.type === "start" || action.type === "intro")
               sound.play("open");
@@ -217,7 +224,7 @@ function GameScreen({
           } catch (e) {
             // A superseded request must not mark the newer selection as failed.
             if (edit && !isLatestEdit()) return null;
-            if (!["read", "note", "draft"].includes(action.type))
+            if (!["read", "note", "draft", "arrange"].includes(action.type))
               sound.play("retry");
             if (edit)
               updateDraftEdits((edits) => ({
@@ -386,7 +393,7 @@ function GameScreen({
         r.title,
         r.author,
         r.id,
-        ...r.paragraphs,
+        ...readableParagraphs(r, p),
         ...(r.comments ?? []).map((c) => c.text),
         ...(r.attachment?.rows.flat() ?? []),
       ]
@@ -892,7 +899,9 @@ function GameScreen({
                   <p>
                     {r.surveillance
                       ? `${r.surveillance.camera} 보관 캡처 ${r.surveillance.frames.length}장 · 원문에서 이미지 확인`
-                      : r.paragraphs[0]}
+                      : r.shredded
+                        ? "복원한 결산 수정 쪽지 · 두 지급 내역과 회신"
+                        : r.paragraphs[0]}
                   </p>
                   <footer>
                     {r.author}
@@ -1223,7 +1232,19 @@ function GameScreen({
                 <span className="post-status">{selected.status}</span>
               )}
             </div>
-            {selected.surveillance ? (
+            {selected.shredded ? (
+              <ShreddedDocument
+                record={selected}
+                saved={restorationFor(selected, p)}
+                onSave={async (order, verify) =>
+                  !!(await send({
+                    type: verify ? "restore" : "arrange",
+                    record: selected.id,
+                    pieces: order,
+                  }))
+                }
+              />
+            ) : selected.surveillance ? (
               <CctvViewer footage={selected.surveillance} />
             ) : (
               <div className="document-body">
@@ -1294,36 +1315,37 @@ function GameScreen({
                 ))}
               </section>
             )}
-            {e.questions.some((q) =>
-              caseThreads[e.id - 1].inquiries[q.id].discoveredBy.includes(
-                selected.id,
-              ),
-            ) && (
-              <section className="record-inquiries">
-                <h3>이 기록을 읽고 생긴 의문</h3>
-                {e.questions
-                  .filter((q) =>
-                    caseThreads[e.id - 1].inquiries[q.id].discoveredBy.includes(
-                      selected.id,
-                    ),
-                  )
-                  .map((q) => (
-                    <div key={q.id}>
-                      <strong>
-                        {caseThreads[e.id - 1].inquiries[q.id].title}
-                      </strong>
-                      <p>{caseThreads[e.id - 1].inquiries[q.id].because}</p>
-                      <button
-                        className="text-button"
-                        disabled={pending > 0}
-                        onClick={() => openQuestion(q.id)}
-                      >
-                        이 의문을 추리 노트에 정리 ↗
-                      </button>
-                    </div>
-                  ))}
-              </section>
-            )}
+            {recordRestored(selected, p) &&
+              e.questions.some((q) =>
+                caseThreads[e.id - 1].inquiries[q.id].discoveredBy.includes(
+                  selected.id,
+                ),
+              ) && (
+                <section className="record-inquiries">
+                  <h3>이 기록을 읽고 생긴 의문</h3>
+                  {e.questions
+                    .filter((q) =>
+                      caseThreads[e.id - 1].inquiries[
+                        q.id
+                      ].discoveredBy.includes(selected.id),
+                    )
+                    .map((q) => (
+                      <div key={q.id}>
+                        <strong>
+                          {caseThreads[e.id - 1].inquiries[q.id].title}
+                        </strong>
+                        <p>{caseThreads[e.id - 1].inquiries[q.id].because}</p>
+                        <button
+                          className="text-button"
+                          disabled={pending > 0}
+                          onClick={() => openQuestion(q.id)}
+                        >
+                          이 의문을 추리 노트에 정리 ↗
+                        </button>
+                      </div>
+                    ))}
+                </section>
+              )}
             {isPublicRecord(selected) && (
               <div className="post-reactions">
                 <button
@@ -1344,10 +1366,12 @@ function GameScreen({
               <span>
                 {p.pinned.includes(selected.id)
                   ? "✓ 증거 보관함에 저장된 기록"
-                  : "이 기록이 단서가 될 수 있을까요?"}
+                  : !recordRestored(selected, p)
+                    ? "복원을 마치면 증거로 수집할 수 있습니다"
+                    : "이 기록이 단서가 될 수 있을까요?"}
               </span>
               <button
-                disabled={pending > 0}
+                disabled={pending > 0 || !recordRestored(selected, p)}
                 data-sound="silent"
                 className={
                   p.pinned.includes(selected.id) ? "secondary" : "primary"

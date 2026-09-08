@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import type { Progress } from "../lib/game";
 import type { RecordFile } from "../lib/cases";
 import { deliveries, deliveryRecords, worldStage } from "../lib/world";
+import { readableParagraphs, recordRestored } from "../lib/restoration";
 
 export default function InvestigationInbox({
   progress,
@@ -27,7 +28,7 @@ export default function InvestigationInbox({
           d.body,
           ...deliveryRecords(d.episode).flatMap((r) => [
             r.title,
-            ...r.paragraphs,
+            ...readableParagraphs(r, progress),
             ...(r.surveillance?.frames.map((frame) => frame.alt) ?? []),
           ]),
         ]
@@ -122,7 +123,13 @@ export default function InvestigationInbox({
                     </small>
                   </div>
                   <span>
-                    {progress.read.includes(r.id) ? "읽음" : "열기 ↗"}
+                    {r.shredded
+                      ? recordRestored(r, progress)
+                        ? "복원 완료"
+                        : "복원하기 ↗"
+                      : progress.read.includes(r.id)
+                        ? "읽음"
+                        : "열기 ↗"}
                   </span>
                 </button>
               ))}

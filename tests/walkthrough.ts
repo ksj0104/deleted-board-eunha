@@ -1,4 +1,12 @@
 // Independently recorded editorial walkthrough; do not generate this from the answer key.
+export const restoredPaperOrder = [
+  "cedar",
+  "reed",
+  "ash",
+  "elm",
+  "pine",
+  "birch",
+];
 export const walkthrough = [
   {
     alias: ["계단참", ["1-2", "1-3"]],
