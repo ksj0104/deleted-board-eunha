@@ -1,7 +1,17 @@
 import type { RecordFile } from "./cases";
 
 export type CommunityPhoto =
-  "courtyard" | "cat" | "pancakes" | "chair" | "flowers" | "books";
+  | "courtyard"
+  | "cat"
+  | "pancakes"
+  | "pancakesFollowup"
+  | "chair"
+  | "flowers"
+  | "flowersPhone"
+  | "flowersWalkway"
+  | "flowersArchive"
+  | "flowersWallpaper"
+  | "books";
 
 export type CommunityEntry = Omit<RecordFile, "comments" | "photo"> & {
   replies?: [author: string, text: string, date?: string][];

@@ -218,7 +218,7 @@ assert.match(html, /212개 기록/);
 const card = await fetch(`${base}/og.png`);
 assert.equal(card.status, 200);
 assert.match(card.headers.get("content-type") ?? "", /image\/png/);
-for (const path of [
+const imagePaths = [
   ...Object.values(communityImages).map((a) => a.src),
   ...inspectionCaptures.map((frame) => frame.src),
   ...Object.values(documentScans).flatMap((pages) =>
@@ -240,14 +240,15 @@ for (const path of [
       (record) => record.surveillance?.frames.map((frame) => frame.src) ?? [],
     ),
   ),
-]) {
+];
+for (const path of imagePaths) {
   const img = await fetch(`${base}/${path.replace(/^\//, "")}`);
   assert.equal(img.status, 200, path);
   assert.match(img.headers.get("content-type") ?? "", /image\/webp/);
   assert.ok((await img.arrayBuffer()).byteLength > 10000, path);
 }
 console.log(
-  "PASS HTTP: all 29 game images including document scans and cropped scraps; persisted introduction/reaction state",
+  `PASS HTTP: all ${imagePaths.length} game images including document scans and cropped scraps; persisted introduction/reaction state`,
 );
 const assets = [
   ...html.matchAll(

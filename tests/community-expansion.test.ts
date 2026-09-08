@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { episodes, recordById } from "../lib/cases";
 import { communityHistory } from "../lib/community-history";
 import { communityNeighborhood } from "../lib/community-neighborhood";
@@ -15,6 +17,29 @@ import { canReadRecord, communityRecords, isPublicRecord } from "../lib/world";
 const additions = [...communityHistory, ...communityNeighborhood].map((entry) =>
   recordById(entry.id)!,
 );
+
+test("community photos: magnolia posts use distinct scenes and the pajeon followup has its own new cooking photo", async () => {
+  const magnolias = ["1-84", "3-7", "3-16", "4-13", "7-8"].map((id) =>
+    recordById(id)!,
+  );
+  assert.equal(
+    new Set(magnolias.map((post) => post.photo!.src)).size,
+    magnolias.length,
+  );
+  const hashes = await Promise.all(
+    magnolias.map(async (post) =>
+      createHash("sha256")
+        .update(await readFile(`public/${post.photo!.src}`))
+        .digest("hex"),
+    ),
+  );
+  assert.equal(new Set(hashes).size, magnolias.length);
+  const followup = recordById("2-11")!;
+  assert.notEqual(followup.photo!.src, recordById("1-7")!.photo!.src);
+  assert.equal(recordById("6-11")!.photo!.src, followup.photo!.src);
+  assert.doesNotMatch(followup.paragraphs.join(" "), /사진은 없습니다/);
+  assert.ok((await readFile(`public/${followup.photo!.src}`)).length > 10000);
+});
 
 test("community expansion: search trails connect everyday followups and existing case records without revealing future posts", () => {
   const board = communityRecords(freshProgress());

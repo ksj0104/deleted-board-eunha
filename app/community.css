@@ -1644,13 +1644,12 @@ select:focus-visible {
 }
 .shred-strips {
   display: grid;
-  grid-template-columns: repeat(6, 104px);
   gap: 7px;
   width: max-content;
   margin: auto;
 }
 .shred-strip {
-  width: 104px;
+  width: 100%;
   padding: 0;
   border: 0;
   background: transparent;

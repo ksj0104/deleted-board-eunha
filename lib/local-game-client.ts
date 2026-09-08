@@ -1,7 +1,7 @@
 import { episodes, recordById } from "./cases";
 import { applyAction, freshProgress, gameView, type Progress } from "./game";
 import type { GameClient } from "./game-client";
-import { isRestoredOrder, validPieceOrder } from "./restoration";
+import { validSavedRestoration } from "./restoration";
 import { comparisonMatches, validOffset } from "./calibration";
 import {
   investigationById,
@@ -68,13 +68,7 @@ function isProgress(value: unknown): value is Progress {
       (object(value.restorations) &&
         Object.entries(value.restorations).every(([id, saved]) => {
           const doc = recordById(id)?.shredded;
-          return (
-            !!doc &&
-            object(saved) &&
-            typeof saved.complete === "boolean" &&
-            validPieceOrder(doc, saved.order) &&
-            (!saved.complete || isRestoredOrder(doc, saved.order))
-          );
+          return !!doc && validSavedRestoration(doc, saved);
         }))) &&
     (value.liked === undefined || recordIds(value.liked)) &&
     (value.introduced === undefined ||

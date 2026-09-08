@@ -102,7 +102,9 @@ export default function ShreddedDocument({
   return (
     <section className="shred-workbench" aria-label="파쇄 문서 복원">
       <div className="shred-intro">
-        <span className="shred-tag">봉인 회수물 S-0319 · 종이 6묶음</span>
+        <span className="shred-tag">
+          봉인 회수물 S-0319 · 종이 {doc.pieces.length}조각
+        </span>
         <h2>
           {complete
             ? "이어 붙인 결산 수정 쪽지"
@@ -162,6 +164,14 @@ export default function ShreddedDocument({
       >
         <div
           className={`shred-strips ${complete ? "assembled" : ""}`}
+          style={{
+            gridTemplateColumns: order
+              .map(
+                (id) =>
+                  `${(doc.pieces.find((piece) => piece.id === id)?.width ?? 208) / 2}px`,
+              )
+              .join(" "),
+          }}
           role="group"
           aria-label="회수한 종이 조각"
         >

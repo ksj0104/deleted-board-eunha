@@ -29,4 +29,4 @@ export const settlementScan: DocumentScan = {
 };
 
 export const settlementPieceSrc = (id: string) =>
-  `documents/settlement-${id}.webp`;
+  `documents/settlement-10-${id}.webp`;

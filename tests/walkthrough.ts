@@ -134,11 +134,15 @@ export function investigationActions(episode: number) {
 }
 export const restoredPaperOrder = [
   "cedar",
+  "willow",
   "reed",
   "ash",
+  "maple",
   "elm",
   "pine",
+  "oak",
   "birch",
+  "yew",
 ];
 export const walkthrough = [
   {

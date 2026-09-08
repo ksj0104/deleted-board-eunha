@@ -91,7 +91,7 @@ try {
     assert.match(resource.headers.get("content-type")!, /javascript|text\/css/);
     assert.ok((await resource.arrayBuffer()).byteLength > 1000);
   }
-  for (const path of [
+  const imagePaths = [
     ...Object.values(communityImages).map((asset) => asset.src),
     ...inspectionCaptures.map((frame) => frame.src),
     ...Object.values(documentScans).flatMap((pages) =>
@@ -116,7 +116,8 @@ try {
       ),
     ),
     "og.png",
-  ]) {
+  ];
+  for (const path of imagePaths) {
     const imageResponse: Response = await fetch(new URL(path, pageUrl));
     assert.equal(imageResponse.status, 200, path);
     assert.match(
@@ -195,7 +196,7 @@ try {
     first.window.close();
   }
   console.log(
-    `PASS Pages: ${base} — HTML, CSS/JS, 29 game images including documents and cropped scraps, share image, production bundle start and browser save restoration; no API calls`,
+    `PASS Pages: ${base} — HTML, CSS/JS, ${imagePaths.length - 1} game images including documents and cropped scraps, share image, production bundle start and browser save restoration; no API calls`,
   );
 } finally {
   if (server.listening)

@@ -3,6 +3,7 @@ import {
   isRestoredOrder,
   recordRestored,
   restorationFor,
+  migrateRestorations,
   validPieceOrder,
   type Restoration,
 } from "./restoration";
@@ -165,7 +166,7 @@ export function applyAction(
   current: Progress,
   action: Action,
 ): { progress: Progress; feedback?: Feedback } {
-  const p: Progress = structuredClone(current);
+  const p: Progress = structuredClone(migrateRestorations(current));
   p.calibration ??= calibrationFor(current);
   p.restorations ??= Object.fromEntries(
     allRecords
@@ -376,6 +377,7 @@ export function applyAction(
   return { progress: p };
 }
 export function gameView(progress: Progress) {
+  progress = migrateRestorations(progress);
   return {
     progress,
     resolutions: Object.fromEntries(

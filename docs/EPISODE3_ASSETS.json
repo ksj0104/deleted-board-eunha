@@ -37,6 +37,89 @@
   "crops": [
     {
       "id": "cedar",
+      "file": "public/documents/settlement-10-cedar.webp",
+      "left": 0,
+      "top": 0,
+      "width": 154,
+      "height": 1024
+    },
+    {
+      "id": "willow",
+      "file": "public/documents/settlement-10-willow.webp",
+      "left": 154,
+      "top": 0,
+      "width": 153,
+      "height": 1024
+    },
+    {
+      "id": "reed",
+      "file": "public/documents/settlement-10-reed.webp",
+      "left": 307,
+      "top": 0,
+      "width": 154,
+      "height": 1024
+    },
+    {
+      "id": "ash",
+      "file": "public/documents/settlement-10-ash.webp",
+      "left": 461,
+      "top": 0,
+      "width": 153,
+      "height": 1024
+    },
+    {
+      "id": "maple",
+      "file": "public/documents/settlement-10-maple.webp",
+      "left": 614,
+      "top": 0,
+      "width": 154,
+      "height": 1024
+    },
+    {
+      "id": "elm",
+      "file": "public/documents/settlement-10-elm.webp",
+      "left": 768,
+      "top": 0,
+      "width": 154,
+      "height": 1024
+    },
+    {
+      "id": "pine",
+      "file": "public/documents/settlement-10-pine.webp",
+      "left": 922,
+      "top": 0,
+      "width": 153,
+      "height": 1024
+    },
+    {
+      "id": "oak",
+      "file": "public/documents/settlement-10-oak.webp",
+      "left": 1075,
+      "top": 0,
+      "width": 154,
+      "height": 1024
+    },
+    {
+      "id": "birch",
+      "file": "public/documents/settlement-10-birch.webp",
+      "left": 1229,
+      "top": 0,
+      "width": 153,
+      "height": 1024
+    },
+    {
+      "id": "yew",
+      "file": "public/documents/settlement-10-yew.webp",
+      "left": 1382,
+      "top": 0,
+      "width": 154,
+      "height": 1024
+    }
+  ],
+  "pixelReconstruction": "exact match",
+  "previousCrops": [
+    {
+      "id": "cedar",
       "file": "public/documents/settlement-cedar.webp",
       "left": 0,
       "top": 0,
@@ -83,6 +166,5 @@
       "width": 256,
       "height": 1024
     }
-  ],
-  "pixelReconstruction": "exact match"
+  ]
 }

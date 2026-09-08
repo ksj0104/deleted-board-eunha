@@ -370,7 +370,7 @@ test("UI: shredded paper supports keyboard, drag, save retry, reopening, reconst
   await screen.findByRole("heading", { name: "은하아파트 주민마당" });
   await openSourceRecord(user, record);
   let dialog = screen.getByRole("dialog", { name: record.title });
-  assert.equal(dialog.querySelectorAll(".shred-image img").length, 6);
+  assert.equal(dialog.querySelectorAll(".shred-image img").length, 10);
   assert.equal(dialog.querySelector(".shred-fragment"), null);
   assert.equal(
     dialog.querySelector(`img[src="${settlementScan.src}"]`),

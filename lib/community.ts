@@ -19,6 +19,11 @@ export const communityImages = {
     alt: "집 식탁에 놓인 노릇한 파전과 작은 간장 종지",
     caption: "가장자리는 바삭하게, 가운데는 촉촉하게.",
   },
+  pancakesFollowup: {
+    src: "community/pancakes-followup.webp",
+    alt: "프라이팬에 얇게 부친 파가 듬뿍 든 파전과 바삭한 가장자리",
+    caption: "이웃 조언대로 반죽은 줄이고 쪽파는 넉넉하게 넣어 부쳤어요.",
+  },
   chair: {
     src: "community/chair.webp",
     alt: "화분 옆에 놓인 사용감 있는 나무 접이식 의자와 크림색 방석",
@@ -28,6 +33,28 @@ export const communityImages = {
     src: "community/flowers.webp",
     alt: "아파트 산책로의 가지 끝에서 피기 시작한 하얀 목련",
     caption: "꽃이 하나둘 열리기 시작했어요. 사진으로 함께 봐요.",
+  },
+  flowersPhone: {
+    src: "community/magnolia-phone.webp",
+    alt: "아침 침대 옆 탁자에 놓인 휴대전화 화면의 목련 배경사진",
+    caption: "이웃의 꽃 사진으로 바꾼 휴대전화 배경을 아침에 찍었습니다.",
+  },
+  flowersWalkway: {
+    src: "community/magnolia-walkway.webp",
+    alt: "점심 산책길 굽은 보도 옆에서 봉오리와 흰 꽃이 보이는 목련나무",
+    caption:
+      "점심에 직접 걸어 본 길 · 가지 가까이 대신 산책로 전체를 담았어요.",
+  },
+  flowersArchive: {
+    src: "community/magnolia-last-spring.webp",
+    alt: "지난봄 오후 햇살 아래 만개한 목련나무와 떨어진 흰 꽃잎",
+    caption: "지난해 봄 사진첩에서 꺼낸 만개한 목련입니다.",
+  },
+  flowersWallpaper: {
+    src: "community/magnolia-spring-wallpaper.webp",
+    alt: "초록 배경 앞 대각선 가지에 핀 물방울 맺힌 흰 목련 두 송이",
+    caption:
+      "이번에는 초록 배경으로 가까이 담은 꽃 두 송이 · 개인 배경으로 쓰세요.",
   },
   books: {
     src: "community/books.webp",
@@ -285,10 +312,11 @@ export const communityPosts: RecordFile[] = [
     "햇살주방",
     "03.19 18:10",
     [
-      "어제 댓글대로 반죽을 줄이고 파를 더 넣었더니 훨씬 바삭해졌어요. 가족들이 순식간에 먹어서 오늘 사진은 없습니다.",
+      "어제 댓글대로 반죽을 줄이고 파를 더 넣었더니 훨씬 바삭해졌어요. 가족들이 먹기 전에 프라이팬에서 한 장 찍어뒀습니다. 얇아진 가운데와 가장자리를 같이 봐주세요.",
       "다음에는 감자전을 해보려는데 강판 꺼내는 일부터 큰 결심이 필요하네요. 남은 쪽파는 잘라서 냉동했습니다.",
     ],
     [["분홍앞치마", "성공 축하해요! 감자는 믹서보다 강판이 식감이 좋긴 해요."]],
+    "pancakesFollowup",
   ),
   post(
     "2-12",
@@ -574,7 +602,7 @@ export const communityPosts: RecordFile[] = [
     "느린아침",
     "03.21 08:05",
     [
-      "초록화분 님이 올린 사진을 허락받고 제 휴대전화 배경으로 설정했습니다. 아침 알람 끌 때 꽃부터 보게 되네요.",
+      "초록화분 님이 올린 사진을 허락받고 제 휴대전화 배경으로 설정했습니다. 오늘은 배경을 바꾼 휴대전화를 탁자 위에서 찍어봤어요. 아침 알람 끌 때 꽃부터 보게 되네요.",
       "실제 나무도 매일 조금씩 달라지는 것 같아요. 아직 바람이 차니 주말 산책하실 때 얇은 외투 챙기세요.",
     ],
     [
@@ -584,7 +612,7 @@ export const communityPosts: RecordFile[] = [
         "03.21 08:37",
       ],
     ],
-    "flowers",
+    "flowersPhone",
   ),
   post(
     "4-14",
@@ -830,7 +858,7 @@ export const communityPosts: RecordFile[] = [
       ["분홍앞치마", "강판 담당과 설거지 담당은 미리 협상해야 합니다."],
       ["느린아침", "저는 먹는 담당이라 뜨끔하네요."],
     ],
-    "pancakes",
+    "pancakesFollowup",
   ),
   post(
     "6-12",
@@ -901,18 +929,18 @@ export const communityPosts: RecordFile[] = [
   post(
     "7-8",
     "단지 사진첩",
-    "며칠 전 목련 사진, 봄 배경 나눔",
+    "새로 찍은 목련 사진, 봄 배경 나눔",
     "초록화분",
     "03.24 09:25",
     [
-      "휴대전화 배경으로 쓰고 싶다는 쪽지가 있어서 지난번 사진을 다시 올립니다. 개인 배경으로 편하게 쓰세요.",
-      "오늘은 바람이 있어서 새 사진은 흔들렸네요. 가지를 잡고 찍지는 않았습니다. 꽃 피는 속도도 우리 일정대로 되지는 않는 것 같아요.",
+      "휴대전화 배경으로 쓰고 싶다는 쪽지가 있어서 오늘은 다른 가지의 꽃 두 송이를 새로 찍었습니다. 초록 배경으로 담았으니 개인 배경으로 편하게 쓰세요.",
+      "바람이 잠깐 잦아들 때 길에서 찍었어요. 가지를 잡지는 않았고 꽃잎에 맺힌 물방울도 보이네요. 며칠 사이에 꽃이 제법 활짝 폈습니다.",
     ],
     [
-      ["느린아침", "여전히 제 배경입니다. 감사합니다."],
+      ["느린아침", "새 사진도 배경으로 바꿔볼게요. 감사합니다."],
       ["토끼책가방", "아이가 학교에서 봄 찾기 할 때 보여줬어요."],
     ],
-    "flowers",
+    "flowersWallpaper",
   ),
   post(
     "7-9",

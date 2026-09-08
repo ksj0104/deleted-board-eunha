@@ -583,7 +583,7 @@ export const communityNeighborhood = [
         "작년 사진이었군요. 올해 봉오리도 이렇게 열리기를 기다리고 있어요.",
       ],
     ],
-    photo: "flowers",
+    photo: "flowersArchive",
   },
   {
     id: "1-85",

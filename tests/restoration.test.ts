@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import sharp from "sharp";
 import { readFile } from "node:fs/promises";
 import { documentScans } from "../lib/document-scans";
-import { applyAction, freshProgress, grade } from "../lib/game";
+import { applyAction, freshProgress, grade, gameView } from "../lib/game";
 import { recordById } from "../lib/cases";
 import { readableParagraphs, restorationFor } from "../lib/restoration";
 import {
@@ -20,7 +20,7 @@ const initial = () => ({
   solved: [1, 2],
 });
 
-test("document scans: all originals are readable-size assets and six actual crops reconstruct the exact memo pixels", async () => {
+test("document scans: all originals are readable-size assets and ten actual crops reconstruct the exact memo pixels", async () => {
   for (const page of Object.values(documentScans).flat()) {
     const bytes = await readFile(`public/${page.src}`);
     const image = await sharp(bytes).metadata();
@@ -40,6 +40,11 @@ test("document scans: all originals are readable-size assets and six actual crop
     const piece = doc.pieces.find((piece) => piece.id === id)!;
     const image = await sharp(`public/${piece.src}`).metadata();
     assert.equal(image.height, height);
+    assert.equal(
+      image.width,
+      piece.width,
+      "displayed width preserves the actual crop aspect ratio",
+    );
     layers.push({ input: `public/${piece.src}`, left, top: 0 });
     left += image.width!;
   }
@@ -145,6 +150,103 @@ test("restoration: only complete, valid and accessible paper can become deductio
     p,
     "replaying never revokes a collected, verified original",
   );
+});
+
+test("restoration: six-strip saves upgrade to ten strips without losing completion, clues, drafts or failed writes", async () => {
+  const six = ["cedar", "reed", "ash", "elm", "pine", "birch"];
+  for (const complete of [false, true]) {
+    const original = {
+      ...initial(),
+      read: [record.id],
+      pinned: complete ? [record.id] : [],
+      notes: { 2: "남겨둔 메모" },
+      drafts: { 2: { time: { answer: "20:14", evidence: [] } } },
+      restorations: {
+        [record.id]: {
+          order: complete
+            ? six
+            : ["elm", "birch", "cedar", "pine", "reed", "ash"],
+          complete,
+        },
+      },
+    };
+    const before = JSON.stringify(original);
+    let raw = before,
+      fail = false;
+    const storage = {
+      getItem: () => raw,
+      setItem: (_key: string, value: string) => {
+        if (fail) throw new Error("quota");
+        raw = value;
+      },
+    };
+    const client = createLocalGameClient(() => storage);
+    const loaded = (await client.request()).progress;
+    const expected = complete
+      ? restoredPaperOrder
+      : [
+          "elm",
+          "pine",
+          "birch",
+          "yew",
+          "cedar",
+          "willow",
+          "oak",
+          "reed",
+          "ash",
+          "maple",
+        ];
+    assert.deepEqual(loaded.restorations![record.id], {
+      order: expected,
+      complete,
+    });
+    assert.deepEqual(
+      gameView(original).progress.restorations,
+      loaded.restorations,
+    );
+    assert.deepEqual(restorationFor(record, original), {
+      order: expected,
+      complete,
+    });
+    assert.equal(raw, before, "reading a legacy save must not rewrite storage");
+    assert.deepEqual(loaded.pinned, original.pinned);
+    assert.deepEqual(loaded.drafts, original.drafts);
+    assert.deepEqual(loaded.notes, original.notes);
+    assert.equal(JSON.stringify(original), before);
+    fail = true;
+    await assert.rejects(
+      client.request({ type: "note", text: "이어서 조사" }),
+      /저장/,
+    );
+    assert.equal(raw, before);
+    fail = false;
+    await client.request({ type: "note", text: "이어서 조사" });
+    assert.equal(JSON.parse(raw).restorations[record.id].order.length, 10);
+    assert.equal(
+      (await createLocalGameClient(() => storage).request()).progress
+        .restorations![record.id].complete,
+      complete,
+    );
+  }
+  for (const saved of [
+    { order: ["elm", "birch", "cedar", "pine", "reed", "ash"], complete: true },
+    {
+      order: ["cedar", "cedar", "ash", "elm", "pine", "birch"],
+      complete: false,
+    },
+  ]) {
+    const raw = JSON.stringify({
+      ...initial(),
+      restorations: { [record.id]: saved },
+    });
+    await assert.rejects(
+      createLocalGameClient(() => ({
+        getItem: () => raw,
+        setItem: () => assert.fail("must preserve damaged save"),
+      })).request(),
+      /저장된 기록/,
+    );
+  }
 });
 
 test("restoration: legacy originals stay available while previously unread paper still requires reconstruction", () => {
