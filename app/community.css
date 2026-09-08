@@ -1,4 +1,19 @@
 /* Resident community and investigation windows */
+.community-board,
+.incoming-mail-notice,
+.investigation-inbox,
+.dialog:has(.document-title) {
+  --text: #283c37;
+  --muted: #53685e;
+  --line: #d2dbd2;
+  --coral: #355e4c;
+  --green: #355e4c;
+  --paper: #f5f5ee;
+  --paper-raised: #fffef9;
+  --paper-soft: #e5ecdf;
+  color: var(--text);
+  color-scheme: light;
+}
 .main-case-thread {
   padding-bottom: 16px;
   margin-bottom: 19px;
@@ -416,15 +431,10 @@
   display: none;
 }
 .community-board {
-  --muted: #62716c;
-  --line: #d8dfd6;
-  --text: #283c37;
-  color: var(--text);
-  background: #f5f5ee;
+  background: var(--paper);
   border-radius: 9px;
   overflow: hidden;
-  border: 1px solid #d2dbd2;
-  color-scheme: light;
+  border: 1px solid var(--line);
 }
 .community-cover {
   position: relative;
@@ -1307,6 +1317,123 @@ select:focus-visible {
 .document-tools .text-button {
   font-size: 11px;
 }
+/* Open records use the same paper, ink and controls as the resident board. */
+.dialog:has(.document-title) {
+  background: var(--paper);
+  border-color: var(--line);
+  border-radius: 9px;
+}
+.dialog:has(.document-title) .close-button {
+  color: var(--coral);
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.dialog:has(.document-title) .document-kicker {
+  font-family: var(--sans);
+  letter-spacing: 0;
+}
+.dialog:has(.document-title) .document-kicker > span {
+  color: var(--coral);
+  background: var(--paper-soft);
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.dialog:has(.document-title) .document-kicker > .restored {
+  color: #784629;
+  background: #f1e2d3;
+}
+.dialog:has(.document-title) .document-title {
+  font-family: var(--sans);
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--text);
+}
+.dialog:has(.document-title) :is(.document-body, .comments strong, td) {
+  color: var(--text);
+}
+.dialog:has(.document-title)
+  :is(
+    .document-meta,
+    .document-photo figcaption,
+    .resident-comment time,
+    .comments p,
+    .record-inquiries p,
+    .post-reactions > span,
+    .document-footer,
+    .record-next-help
+  ) {
+  color: var(--muted);
+}
+.dialog:has(.document-title)
+  :is(.document-meta, .comments, .record-inquiries, .document-footer, th, td) {
+  border-color: var(--line);
+}
+.dialog:has(.document-title) .document-photo img {
+  background: var(--paper-soft);
+}
+.dialog:has(.document-title) :is(.attachment, .comments > div) {
+  color: var(--text);
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.dialog:has(.document-title)
+  :is(.attachment h3, .comments h3, .record-inquiries h3) {
+  color: var(--coral);
+  font-weight: 600;
+}
+.dialog:has(.document-title) th {
+  color: var(--text);
+  background: var(--paper-soft);
+  font-weight: 600;
+}
+.dialog:has(.document-title) .record-inquiries > div {
+  background: var(--paper-soft);
+  border-left-color: var(--coral);
+  border-radius: 0 5px 5px 0;
+}
+.dialog:has(.document-title) .record-inquiries strong {
+  color: var(--text);
+}
+.dialog:has(.document-title) .primary {
+  background: var(--coral);
+  color: var(--paper-raised);
+  border-color: var(--coral);
+}
+.dialog:has(.document-title) .primary:hover:not(:disabled) {
+  background: #284b3b;
+}
+.dialog:has(.document-title) .secondary {
+  color: var(--coral);
+  background: var(--paper-raised);
+  border-color: #708572;
+}
+.dialog:has(.document-title) .secondary:hover:not(:disabled),
+.dialog:has(.document-title) .post-reactions button[aria-pressed="true"] {
+  color: var(--coral);
+  background: var(--paper-soft);
+  border-color: var(--coral);
+}
+:is(.dialog:has(.document-title), .incoming-mail-notice, .investigation-inbox)
+  .text-button {
+  color: var(--coral);
+  font-weight: 600;
+}
+:is(.dialog:has(.document-title), .incoming-mail-notice, .investigation-inbox)
+  .text-button:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+:is(.dialog:has(.document-title), .incoming-mail-notice, .investigation-inbox)
+  button:hover:not(:disabled) {
+  filter: none;
+}
+.dialog:has(.document-title) .dialog-error {
+  color: #852e28;
+  background: #fff1ed;
+  border-color: #d09b8c;
+}
 .dialog.wide:has(.story-prologue) {
   padding: 0;
   width: min(930px, calc(100% - 32px));
@@ -1619,9 +1746,9 @@ select:focus-visible {
   gap: 12px;
   margin-bottom: 18px;
   padding: 16px 20px;
-  border: 1px solid #d8dfd2;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: #f0f4eb;
+  background: var(--paper-soft);
 }
 .incoming-mail-notice div {
   display: grid;
@@ -1629,15 +1756,17 @@ select:focus-visible {
 }
 .incoming-mail-notice span {
   font-size: 11px;
-  color: #52705d;
+  font-weight: 600;
+  color: var(--coral);
 }
 .incoming-mail-notice strong {
   font-size: 14px;
+  color: var(--text);
 }
 .investigation-inbox {
-  border: 1px solid #e0ddd5;
-  border-radius: 12px;
-  background: #fffdf8;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--paper);
   overflow: hidden;
 }
 .inbox-header {
@@ -1655,34 +1784,48 @@ select:focus-visible {
 .inbox-header p,
 .inbox-header > span {
   font-size: 12px;
-  color: #7c796f;
+  color: var(--muted);
 }
 .inbox-search {
   margin: 0 26px 22px;
   width: auto;
+  background: var(--paper-raised);
+  border-color: #708572;
+}
+.inbox-search > span,
+.inbox-search input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.inbox-search input {
+  color: var(--text);
+  font-size: 12px;
 }
 .inbox-columns {
   display: grid;
   grid-template-columns: 235px minmax(0, 1fr);
-  border-top: 1px solid #e5e0d5;
+  border-top: 1px solid var(--line);
 }
 .delivery-list {
   display: flex;
   flex-direction: column;
-  background: #f4f2ec;
-  border-right: 1px solid #e5e0d5;
+  background: var(--paper);
+  border-right: 1px solid var(--line);
 }
 .delivery-list button {
   text-align: left;
   padding: 20px;
   border: 0;
-  border-bottom: 1px solid #e5e0d5;
+  border-bottom: 1px solid var(--line);
   background: transparent;
-  color: #57554e;
+  color: var(--text);
+}
+.delivery-list button:hover,
+.delivery-list button[aria-pressed="true"] {
+  background: var(--paper-soft);
 }
 .delivery-list button[aria-pressed="true"] {
-  background: #fffdf8;
-  box-shadow: inset 3px 0 #55745f;
+  box-shadow: inset 3px 0 var(--coral);
 }
 .delivery-list span,
 .delivery-list strong,
@@ -1691,7 +1834,7 @@ select:focus-visible {
 }
 .delivery-list span {
   font-size: 10px;
-  color: #607b65;
+  color: var(--coral);
 }
 .delivery-list strong {
   font-size: 13px;
@@ -1699,12 +1842,13 @@ select:focus-visible {
   margin: 7px 0;
 }
 .delivery-list small {
-  font-size: 10px;
-  color: #858075;
+  font-size: 11px;
+  color: var(--muted);
 }
 .delivery-message {
   min-width: 0;
   padding: 30px;
+  background: var(--paper-raised);
 }
 .delivery-message h3 {
   font-size: 23px;
@@ -1716,7 +1860,7 @@ select:focus-visible {
   gap: 8px;
   font-size: 11px;
   padding-bottom: 20px;
-  border-bottom: 1px solid #eee8db;
+  border-bottom: 1px solid var(--line);
 }
 .delivery-message dl div {
   display: flex;
@@ -1724,11 +1868,11 @@ select:focus-visible {
 }
 .delivery-message dt {
   flex: 0 0 54px;
-  color: #90897c;
+  color: var(--muted);
 }
 .delivery-message dd {
   margin: 0;
-  color: #666053;
+  color: var(--text);
 }
 .delivery-body {
   line-height: 1.95;
@@ -1740,7 +1884,7 @@ select:focus-visible {
 .delivery-message h4 {
   margin: 32px 0 12px;
   font-size: 12px;
-  color: #777365;
+  color: var(--muted);
 }
 .delivery-attachments {
   display: grid;
@@ -1753,13 +1897,14 @@ select:focus-visible {
   width: 100%;
   padding: 15px;
   text-align: left;
-  background: #faf8f1;
-  border: 1px solid #e8e2d4;
+  color: var(--text);
+  background: var(--paper);
+  border: 1px solid #708572;
   border-radius: 6px;
 }
 .delivery-attachment:hover {
-  border-color: #81927a;
-  background: #f0f4eb;
+  border-color: var(--coral);
+  background: var(--paper-soft);
 }
 .delivery-attachment div {
   flex: 1;
@@ -1772,18 +1917,18 @@ select:focus-visible {
 }
 .delivery-attachment small {
   display: block;
-  font-size: 10px;
-  color: #8a8478;
+  font-size: 11px;
+  color: var(--muted);
   margin-top: 5px;
 }
 .delivery-attachment > span {
-  color: #70836a;
+  color: var(--coral);
   font-size: 11px;
   flex-shrink: 0;
 }
 .inbox-empty {
   padding: 30px;
-  color: #827a6e;
+  color: var(--muted);
 }
 @media (max-width: 850px) {
   .inbox-columns {
@@ -1793,7 +1938,7 @@ select:focus-visible {
     max-height: 215px;
     overflow-y: auto;
     border-right: 0;
-    border-bottom: 1px solid #e5e0d5;
+    border-bottom: 1px solid var(--line);
   }
   .delivery-list button {
     padding: 14px 20px;
