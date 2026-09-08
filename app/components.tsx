@@ -9,6 +9,20 @@ import React, {
 export const GameErrorContext = createContext("");
 let openDialogs = 0;
 let previousOverflow = "";
+const backdropClickTolerance = 5;
+
+function isBackdropEvent(event: React.MouseEvent<HTMLDialogElement>) {
+  if (event.target !== event.currentTarget) return false;
+  const { left, right, top, bottom } =
+    event.currentTarget.getBoundingClientRect();
+  return (
+    event.clientX < left ||
+    event.clientX >= right ||
+    event.clientY < top ||
+    event.clientY >= bottom
+  );
+}
+
 export function Dialog({
   label,
   children,
@@ -23,6 +37,12 @@ export function Dialog({
   focusTarget?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const backdropPress = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+    released: boolean;
+  } | null>(null);
   const error = useContext(GameErrorContext);
   useEffect(() => {
     const d = ref.current;
@@ -59,8 +79,56 @@ export function Dialog({
         e.preventDefault();
         onClose();
       }}
+      onPointerDownCapture={(e) => {
+        // A drag can produce a click targeted at the dialog itself. Remember
+        // where the gesture began; the border box also contains its padding
+        // and scrollbar, neither of which is the backdrop.
+        backdropPress.current =
+          e.isPrimary && e.button === 0 && isBackdropEvent(e)
+            ? {
+                pointerId: e.pointerId,
+                x: e.clientX,
+                y: e.clientY,
+                released: false,
+              }
+            : null;
+      }}
+      onPointerMoveCapture={(e) => {
+        const press = backdropPress.current;
+        if (
+          press &&
+          e.pointerId === press.pointerId &&
+          (!isBackdropEvent(e) ||
+            Math.hypot(e.clientX - press.x, e.clientY - press.y) >
+              backdropClickTolerance)
+        ) {
+          backdropPress.current = null;
+        }
+      }}
+      onPointerUpCapture={(e) => {
+        const press = backdropPress.current;
+        if (!press) return;
+        if (
+          e.pointerId !== press.pointerId ||
+          !isBackdropEvent(e) ||
+          Math.hypot(e.clientX - press.x, e.clientY - press.y) >
+            backdropClickTolerance
+        ) {
+          backdropPress.current = null;
+        } else {
+          press.released = true;
+        }
+      }}
+      onPointerCancelCapture={() => {
+        backdropPress.current = null;
+      }}
+      onDragStartCapture={() => {
+        backdropPress.current = null;
+      }}
       onClick={(e) => {
-        if (e.target === ref.current) onClose();
+        const press = backdropPress.current;
+        backdropPress.current = null;
+        if (press?.released && e.button === 0 && isBackdropEvent(e)) onClose();
       }}
     >
       <button className="close-button" aria-label="닫기" onClick={onClose}>

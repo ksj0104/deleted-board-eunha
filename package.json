@@ -9,7 +9,7 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "tsx --test tests/game.test.ts tests/ui.test.tsx tests/evidence-picker.test.tsx tests/record-search.test.ts tests/community-expansion.test.ts",
+    "test": "tsx --test tests/game.test.ts tests/ui.test.tsx tests/evidence-picker.test.tsx tests/record-search.test.ts tests/community-expansion.test.ts tests/dialog.test.tsx",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "test:http": "tsx tests/http-campaign.ts",
