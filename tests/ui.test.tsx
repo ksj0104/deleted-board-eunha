@@ -11,7 +11,7 @@ import {
 import { freshProgress, applyAction, gameView, type Action } from "../lib/game";
 import { walkthrough } from "./walkthrough";
 import { caseThreads, mainCase } from "../lib/narrative";
-import { deliveries, isPublicRecord } from "../lib/world";
+import { communityRecords, deliveries, isPublicRecord } from "../lib/world";
 import Game from "../app/Game";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
@@ -433,6 +433,79 @@ test("UI: goals appear only in a modal and lead to record-driven questions and f
   assert.equal(document.querySelector(".community-board"), board);
 });
 
+test("UI: keyword trails expose matching comments and attachment rows while preserving a collected article's search", async () => {
+  let state = applyAction(freshProgress(), { type: "start" }).progress;
+  globalThis.fetch = (async (
+    _url: unknown,
+    options?: { method?: string; body?: string },
+  ) => {
+    if (options?.method === "POST") {
+      const result = applyAction(state, JSON.parse(options.body!));
+      state = result.progress;
+      return Response.json({ ...gameView(state), feedback: result.feedback });
+    }
+    return Response.json(gameView(state));
+  }) as typeof fetch;
+  const user = userEvent.setup({ document: dom.window.document });
+  render(<Game />);
+  const search = await screen.findByRole("searchbox", { name: "기록 검색" });
+  assert.ok(screen.getByText("총 97개의 글"));
+  const findRow = (id: string) => {
+    const title = recordById(id)!.title;
+    const row = [
+      ...document.querySelectorAll<HTMLButtonElement>(".record-row"),
+    ].find((node) => node.textContent?.includes(title));
+    assert.ok(row, title);
+    return row;
+  };
+  const marks = (row: HTMLElement) =>
+    [...row.querySelectorAll("mark")].map((mark) => mark.textContent);
+  fireEvent.change(search, { target: { value: "시집" } });
+  await user.click(findRow("1-51"));
+  const neighbor = screen.getByRole("dialog", {
+    name: recordById("1-51")!.title,
+  });
+  assert.ok(within(neighbor).getByText(/수요일 모임이 취소/));
+  await user.click(within(neighbor).getByRole("button", { name: "닫기" }));
+  fireEvent.change(search, { target: { value: "모임 취소" } });
+  assert.ok(findRow("1-4"));
+  fireEvent.change(search, { target: { value: "우편함 독서모임" } });
+  const table = findRow("1-2");
+  assert.ok(within(table).getByText("댓글"));
+  assert.ok(marks(table).includes("우편함"));
+  assert.ok(marks(table).includes("독서모임"));
+  fireEvent.change(search, { target: { value: "동문 용접 고정" } });
+  const works = findRow("4-2");
+  assert.ok(within(works).getByText("본문"));
+  assert.ok(marks(works).includes("용접"));
+  assert.ok(marks(works).includes("고정"));
+  const category = screen.getByRole("combobox", { name: "게시판 분류" });
+  await user.selectOptions(category, "공사안내");
+  await user.click(works);
+  const article = screen.getByRole("dialog", {
+    name: recordById("4-2")!.title,
+  });
+  await user.click(
+    within(article).getByRole("button", { name: "⌑ 증거 수집" }),
+  );
+  await waitFor(() => assert.ok(state.pinned.includes("4-2")));
+  await user.click(within(article).getByRole("button", { name: "닫기" }));
+  assert.equal((search as HTMLInputElement).value, "동문 용접 고정");
+  assert.equal(category.tagName, "SELECT");
+  assert.ok("value" in category);
+  assert.equal(category.value, "공사안내");
+  assert.ok(within(findRow("4-2")).getByLabelText("수집한 증거"));
+  await user.selectOptions(category, "전체");
+  fireEvent.change(search, { target: { value: "R07 비상문" } });
+  const map = findRow("4-1");
+  assert.ok(within(map).getByText("첨부"));
+  assert.ok(marks(map).includes("R07"));
+  assert.ok(marks(map).includes("비상문"));
+  fireEvent.change(search, { target: { value: "동문 존재하지않는검색어" } });
+  assert.equal(document.querySelectorAll(".record-row").length, 0);
+  assert.ok(screen.getByText("일치하는 기록이 없습니다."));
+});
+
 test(
   "UI: community pagination, reactions and stacked investigation windows preserve the board and saved drafts",
   { timeout: 45000 },
@@ -461,7 +534,7 @@ test(
     await screen.findByRole("heading", { name: "은하아파트 주민마당" });
     assert.equal(document.querySelectorAll(".record-row").length, 12);
     await user.click(screen.getByRole("button", { name: "다음 글 →" }));
-    assert.equal(document.querySelectorAll(".record-row").length, 5);
+    assert.equal(document.querySelectorAll(".record-row").length, 12);
     const boardNode = document.querySelector(".community-board");
     await user.click(screen.getByRole("button", { name: /^증거 보관함/ }));
     let cabinet = screen.getByRole("dialog", { name: "증거 보관함" });
@@ -470,7 +543,11 @@ test(
     await user.click(within(cabinet).getByRole("button", { name: "닫기" }));
     assert.equal(document.body.style.overflow, "");
     assert.equal(document.querySelector(".community-board"), boardNode);
-    assert.ok(screen.getByText("2 / 2 페이지"));
+    assert.ok(
+      screen.getByText(
+        `2 / ${Math.ceil(communityRecords(state).length / 12)} 페이지`,
+      ),
+    );
     const search = screen.getByRole("searchbox", { name: "기록 검색" });
     const post = recordById("1-7")!;
     fireEvent.change(search, { target: { value: post.title } });
@@ -532,8 +609,15 @@ test(
     assert.equal((search as HTMLInputElement).value, post.title);
     fireEvent.change(search, { target: { value: "" } });
     await user.click(screen.getByRole("button", { name: "▧ 사진이 있는 글" }));
-    assert.equal(document.querySelectorAll(".record-row").length, 3);
-    assert.equal(document.querySelectorAll(".record-row img").length, 3);
+    const photoCount = Math.min(
+      12,
+      communityRecords(state).filter((record) => record.photo).length,
+    );
+    assert.equal(document.querySelectorAll(".record-row").length, photoCount);
+    assert.equal(
+      document.querySelectorAll(".record-row img").length,
+      photoCount,
+    );
     await user.click(
       screen.getByRole("button", { name: "도입 이야기 다시 보기 ↗" }),
     );
@@ -569,7 +653,7 @@ test(
     });
     await click(within(next).getByRole("button", { name: "조사 이어가기 →" }));
     assert.equal(screen.queryByRole("combobox", { name: "보관 범위" }), null);
-    assert.ok(screen.getByText("총 31개의 글"));
+    assert.ok(screen.getByText(`총 ${communityRecords(state).length}개의 글`));
     fireEvent.change(screen.getByRole("searchbox", { name: "기록 검색" }), {
       target: { value: recordById("3-2")!.title },
     });

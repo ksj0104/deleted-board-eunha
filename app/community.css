@@ -558,10 +558,38 @@
 .community-controls .search input::placeholder {
   color: #788577;
 }
+.community-search-help {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.7;
+  color: #60765d;
+}
 .community-controls > div {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+.community-selects {
+  flex-wrap: wrap;
+}
+.community-selects label {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+  font-size: 10px;
+  color: #60765d;
+}
+.community-selects label:first-child {
+  flex: 1;
+}
+.community-selects label > span {
+  flex-shrink: 0;
+}
+.community-selects label:first-child select {
+  flex: 1;
+  min-width: 0;
+  max-width: 240px;
 }
 .community-controls select {
   max-width: 100%;
@@ -670,6 +698,35 @@ select:focus-visible {
   color: #75816e;
   font-size: 10px;
   margin: 4px 0 8px;
+}
+.community-row .search-term {
+  color: #29452e;
+  background: #f1e0a5;
+  border-radius: 2px;
+  padding: 0 1px;
+  font: inherit;
+}
+.post-search-contexts {
+  margin: 6px 0 10px;
+}
+.post-search-context {
+  margin: 4px 0;
+  color: #5d7057;
+  font-size: 10px;
+  line-height: 1.85;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.post-search-source {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #e2e9dc;
+  color: #4a6648;
+  font-size: 9px;
+  line-height: 1.6;
 }
 .community-row-meta {
   display: flex;

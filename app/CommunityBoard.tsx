@@ -6,6 +6,25 @@ import { episodeStories } from "../lib/stories";
 import type { Progress } from "../lib/game";
 import { Empty, Search } from "./components";
 import { communityRecords, worldDate, worldStage } from "../lib/world";
+import {
+  highlightSearchText,
+  matchesRecordSearch,
+  recordSearchContexts,
+  searchKeywords,
+  type SearchPart,
+} from "../lib/record-search";
+
+function SearchText({ parts }: { parts: SearchPart[] }) {
+  return parts.map((part, index) =>
+    part.match ? (
+      <mark key={index} className="search-term">
+        {part.text}
+      </mark>
+    ) : (
+      <React.Fragment key={index}>{part.text}</React.Fragment>
+    ),
+  );
+}
 
 export function ResidentAvatar({ name }: { name: string }) {
   const colors = ["#52736d", "#927056", "#687a91", "#86738c", "#7d8558"];
@@ -48,24 +67,13 @@ export default function CommunityBoard({
   const source = available.filter((record) => accepted.has(record.id));
   const arrivals = available.filter((record) => !accepted.has(record.id));
   const boards = ["전체", ...new Set(source.map((r) => r.board))];
-  const search = query.trim().toLocaleLowerCase();
+  const keywords = searchKeywords(query);
   const filtered = source
     .filter(
       (r) =>
         (board === "전체" || board === r.board) &&
         (!photos || r.photo) &&
-        (!search ||
-          [
-            r.title,
-            r.author,
-            r.id,
-            ...r.paragraphs,
-            ...(r.comments ?? []).flatMap((c) => [c.author, c.text]),
-            ...(r.attachment?.rows.flat() ?? []),
-          ]
-            .join(" ")
-            .toLocaleLowerCase()
-            .includes(search)),
+        matchesRecordSearch(r, keywords),
     )
     .sort((a, b) =>
       sort === "comments"
@@ -123,21 +131,6 @@ export default function CommunityBoard({
             </h2>
             <span className="muted">조회수·댓글은 보관 당시 기록</span>
           </div>
-          <div className="board-filters community-filters">
-            {boards.map((b) => (
-              <button
-                key={b}
-                className={board === b ? "selected" : ""}
-                aria-pressed={board === b}
-                onClick={() => {
-                  setBoard(b);
-                  setPage(1);
-                }}
-              >
-                {b}
-              </button>
-            ))}
-          </div>
           <div className="community-controls">
             <Search
               query={query}
@@ -146,19 +139,42 @@ export default function CommunityBoard({
                 setPage(1);
               }}
             />
-            <div>
-              <select
-                aria-label="글 정렬"
-                value={sort}
-                onChange={(ev) => {
-                  setSort(ev.target.value);
-                  setPage(1);
-                }}
-              >
-                <option value="newest">최신 글순</option>
-                <option value="oldest">오래된 글순</option>
-                <option value="comments">댓글 많은 순</option>
-              </select>
+            <p className="community-search-help">
+              단어를 띄어 쓰면 함께 포함된 글을 찾습니다.
+            </p>
+            <div className="community-selects">
+              <label>
+                <span>분류</span>
+                <select
+                  aria-label="게시판 분류"
+                  value={board}
+                  onChange={(event) => {
+                    setBoard(event.target.value);
+                    setPage(1);
+                  }}
+                >
+                  {boards.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>정렬</span>
+                <select
+                  aria-label="글 정렬"
+                  value={sort}
+                  onChange={(ev) => {
+                    setSort(ev.target.value);
+                    setPage(1);
+                  }}
+                >
+                  <option value="newest">최신 글순</option>
+                  <option value="oldest">오래된 글순</option>
+                  <option value="comments">댓글 많은 순</option>
+                </select>
+              </label>
             </div>
           </div>
           <div className="feed-summary">
@@ -198,52 +214,78 @@ export default function CommunityBoard({
             </div>
           )}
           <div className="record-table community-table">
-            {shown.map((r) => (
-              <button
-                className={`record-row community-row ${progress.read.includes(r.id) ? "read" : ""}`}
-                key={r.id}
-                onClick={() => onOpen(r)}
-              >
-                <div className="community-row-copy">
-                  <div className="post-labels">
-                    <span className="category">{r.board}</span>
-                    {r.status && (
-                      <span className="post-status">{r.status}</span>
-                    )}
-                    {r.deleted && <span className="restored">복원</span>}
-                    {progress.pinned.includes(r.id) && (
-                      <span className="pinned-mark" aria-label="수집한 증거">
-                        ⌑
+            {shown.map((r) => {
+              const contexts = recordSearchContexts(r, keywords);
+              return (
+                <button
+                  className={`record-row community-row ${progress.read.includes(r.id) ? "read" : ""}`}
+                  key={r.id}
+                  onClick={() => onOpen(r)}
+                >
+                  <div className="community-row-copy">
+                    <div className="post-labels">
+                      <span className="category">
+                        <SearchText
+                          parts={highlightSearchText(r.board, keywords)}
+                        />
                       </span>
+                      {r.status && (
+                        <span className="post-status">{r.status}</span>
+                      )}
+                      {r.deleted && <span className="restored">복원</span>}
+                      {progress.pinned.includes(r.id) && (
+                        <span className="pinned-mark" aria-label="수집한 증거">
+                          ⌑
+                        </span>
+                      )}
+                    </div>
+                    <strong>
+                      <SearchText
+                        parts={highlightSearchText(r.title, keywords)}
+                      />
+                      <span className="comment-count">
+                        [{r.comments?.length ?? 0}]
+                      </span>
+                    </strong>
+                    {contexts.length ? (
+                      <div className="post-search-contexts">
+                        {contexts.map((context, index) => (
+                          <p className="post-search-context" key={index}>
+                            <span className="post-search-source">
+                              {context.source}
+                            </span>
+                            <SearchText parts={context.parts} />
+                          </p>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="post-preview">{r.paragraphs[0]}</p>
                     )}
+                    <div className="community-row-meta">
+                      <ResidentAvatar name={r.author} />
+                      <span>
+                        <SearchText
+                          parts={highlightSearchText(r.author, keywords)}
+                        />
+                      </span>
+                      <time>{r.date}</time>
+                      <span>조회 {recordStats(r).views}</span>
+                      {r.attachment && <span>첨부 1</span>}
+                    </div>
                   </div>
-                  <strong>
-                    {r.title}
-                    <span className="comment-count">
-                      [{r.comments?.length ?? 0}]
-                    </span>
-                  </strong>
-                  <p className="post-preview">{r.paragraphs[0]}</p>
-                  <div className="community-row-meta">
-                    <ResidentAvatar name={r.author} />
-                    <span>{r.author}</span>
-                    <time>{r.date}</time>
-                    <span>조회 {recordStats(r).views}</span>
-                    {r.attachment && <span>첨부 1</span>}
-                  </div>
-                </div>
-                {r.photo && (
-                  <img
-                    className="post-thumbnail"
-                    src={r.photo.src}
-                    alt={r.photo.alt}
-                    width="84"
-                    height="84"
-                    loading="lazy"
-                  />
-                )}
-              </button>
-            ))}
+                  {r.photo && (
+                    <img
+                      className="post-thumbnail"
+                      src={r.photo.src}
+                      alt={r.photo.alt}
+                      width="84"
+                      height="84"
+                      loading="lazy"
+                    />
+                  )}
+                </button>
+              );
+            })}
             {!shown.length && (
               <Empty
                 text="일치하는 기록이 없습니다."

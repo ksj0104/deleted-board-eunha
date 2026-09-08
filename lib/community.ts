@@ -1,4 +1,7 @@
 import type { RecordFile } from "./cases";
+import { createCommunityPost } from "./community-entry";
+import { communityHistory } from "./community-history";
+import { communityNeighborhood } from "./community-neighborhood";
 
 export const communityImages = {
   courtyard: {
@@ -1126,6 +1129,9 @@ export const communityPosts: RecordFile[] = [
       "큰 물건은 통행로를 막지 않도록 지정 공간을 이용해 주세요. 이웃들이 함께 쓸 수 있게 조금씩 신경 써주셔서 감사합니다.",
     ],
     [["책등사이", "아이와 책 정리하고 의자도 넣어두었습니다."]],
+  ),
+  ...[...communityHistory, ...communityNeighborhood].map((entry) =>
+    createCommunityPost(entry, communityImages),
   ),
 ];
 

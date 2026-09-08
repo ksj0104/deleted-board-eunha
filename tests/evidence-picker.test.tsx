@@ -409,7 +409,10 @@ test("community board: refreshing new posts preserves search, category, photo fi
   const advanced = { ...initial, active: 2, solved: [1] };
   const view = render(renderBoard(initial));
   const board = screen.getByRole("region", { name: "은하아파트 주민 게시판" });
-  await user.click(within(board).getByRole("button", { name: oldPhoto.board }));
+  await user.selectOptions(
+    within(board).getByRole("combobox", { name: "게시판 분류" }),
+    oldPhoto.board,
+  );
   fireEvent.change(screen.getByRole("searchbox", { name: "기록 검색" }), {
     target: { value: oldPhoto.title },
   });
@@ -430,10 +433,8 @@ test("community board: refreshing new posts preserves search, category, photo fi
     oldPhoto.title,
   );
   assert.equal(
-    within(board)
-      .getByRole("button", { name: oldPhoto.board })
-      .getAttribute("aria-pressed"),
-    "true",
+    selectValue(within(board).getByRole("combobox", { name: "게시판 분류" })),
+    oldPhoto.board,
   );
   assert.equal(
     screen
@@ -514,7 +515,10 @@ test("community board: an actual game reset clears the previous session's list, 
     target: { value: "남길 검색" },
   });
   const category = communityRecords(progress)[0].board;
-  await user.click(within(original).getByRole("button", { name: category }));
+  await user.selectOptions(
+    within(original).getByRole("combobox", { name: "게시판 분류" }),
+    category,
+  );
   await user.click(screen.getByRole("button", { name: "▧ 사진이 있는 글" }));
   await user.click(screen.getByRole("button", { name: "사건 목록" }));
   await user.click(screen.getByRole("button", { name: "처음부터 다시 시작" }));
@@ -540,10 +544,8 @@ test("community board: an actual game reset clears the previous session's list, 
     "newest",
   );
   assert.equal(
-    within(fresh)
-      .getByRole("button", { name: "전체" })
-      .getAttribute("aria-pressed"),
-    "true",
+    selectValue(within(fresh).getByRole("combobox", { name: "게시판 분류" })),
+    "전체",
   );
   assert.equal(
     within(fresh)

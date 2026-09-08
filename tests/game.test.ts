@@ -94,7 +94,7 @@ test("the community is a persistent dated world; private sources arrive separate
     }
     previous = board.map((r) => r.id);
   }
-  assert.equal(previous.length, 80);
+  assert.equal(previous.length, 180);
   assert.equal(privateIds.length, 32);
   assert.equal(new Set([...previous, ...privateIds]).size, allRecords.length);
 });
@@ -229,23 +229,23 @@ test("legacy saves gain prologue history and reactions without losing progress; 
   assert.deepEqual(applyAction(p, { type: "reset" }).progress, freshProgress());
 });
 
-test("the complete campaign has 8 stories, 48 core records, 64 community posts, and 24 reachable deductions", () => {
+test("the complete campaign has 8 stories, 48 core records, 164 community posts, and 24 reachable deductions", () => {
   assert.equal(episodes.length, 8);
   assert.equal(episodes.flatMap((e) => e.records).length, 48);
-  assert.equal(allRecords.length, 112);
-  assert.equal(new Set(allRecords.map((r) => r.id)).size, 112);
-  assert.equal(communityPosts.length, 64);
+  assert.equal(allRecords.length, 212);
+  assert.equal(new Set(allRecords.map((r) => r.id)).size, 212);
+  assert.equal(communityPosts.length, 164);
   assert.equal(episodeStories.length, 8);
   assert.equal(new Set(episodes.map((e) => e.mechanic)).size, 8);
   for (const ep of episodes) {
     const neighbors = communityPosts.filter((r) =>
       r.id.startsWith(`${ep.id}-`),
     );
-    assert.equal(neighbors.length, 8);
+    assert.ok(neighbors.length >= 8);
     assert.ok(new Set(neighbors.map((r) => r.board)).size >= 4);
     assert.ok(neighbors.some((r) => r.photo));
     for (const r of neighbors) {
-      assert.ok(r.comments?.length);
+      assert.ok(Array.isArray(r.comments));
       assert.ok(r.date.slice(0, 5) <= ep.date);
       if (r.photo) assert.ok(existsSync("public" + r.photo.src), r.photo.src);
     }

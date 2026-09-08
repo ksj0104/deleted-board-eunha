@@ -11,7 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "삭제된 게시판 — 은하아파트 기록",
     description:
-      "연락이 끊긴 이웃과 지워진 기록을 추적한다. 주민 게시판과 받은 자료 속 112개 기록을 연결해 8개의 사건을 해결하는 웹 추리 게임.",
+      "연락이 끊긴 이웃과 지워진 기록을 추적한다. 주민 게시판과 받은 자료 속 212개 기록을 검색하고 연결해 8개의 사건을 해결하는 웹 추리 게임.",
     robots: { index: false, follow: false },
     openGraph: {
       title: "삭제된 게시판",

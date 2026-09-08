@@ -38,6 +38,13 @@ assert.ok(
   ),
 );
 await request({ type: "read", record: "3-2" }, 400);
+for (const id of ["1-15", "1-55", "1-94"]) {
+  const saved = await request({ type: "pin", record: id });
+  assert.ok(saved.progress.read.includes(id));
+  assert.ok(saved.progress.pinned.includes(id));
+}
+for (const id of ["2-15", "4-16", "8-16"])
+  await request({ type: "read", record: id }, 400);
 await request({ type: "start" });
 await request({ type: "like", record: "8-7" }, 400);
 await request({ type: "like", record: "1-7" });
@@ -115,6 +122,12 @@ for (const ep of episodes) {
     await request({ type: "draft", question, draft: { answer, evidence } });
   view = await request({ type: "solve" });
   assert.equal(view.progress.solved.length, ep.id);
+  if (ep.id === 1) {
+    const afterReply = await request({ type: "read", record: "2-15" });
+    assert.ok(afterReply.progress.read.includes("2-15"));
+    assert.ok(afterReply.progress.pinned.includes("1-15"));
+    view = afterReply;
+  }
   assert.ok(view.resolutions[ep.id]);
   const reloaded = await request();
   assert.deepEqual(reloaded.progress, view.progress);
@@ -123,6 +136,14 @@ for (const ep of episodes) {
     `PASS HTTP episode ${ep.id}: all records, hints, note, wrong answer, solve and reload`,
   );
 }
+assert.ok(
+  (await request({ type: "pin", record: "8-16" })).progress.pinned.includes(
+    "8-16",
+  ),
+);
+console.log(
+  "PASS HTTP: new historical posts preserve saves; later community posts obey publication dates",
+);
 view = await request({ type: "ending", ending: "public" });
 assert.equal(view.ending?.title, "다시 열린 게시판");
 view = await request({ type: "ending", ending: "audit" });
@@ -168,6 +189,7 @@ assert.match(html, /삭제된 게시판/);
 assert.match(html, /lang="ko"/);
 assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 assert.match(html, /property="og:image"/);
+assert.match(html, /212개 기록/);
 const card = await fetch(`${base}/og.png`);
 assert.equal(card.status, 200);
 assert.match(card.headers.get("content-type") ?? "", /image\/png/);
