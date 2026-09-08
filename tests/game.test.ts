@@ -198,16 +198,27 @@ test("investigation guidance covers all questions and distinguishes prepared ans
   const prepared = questionPreparation(ep, q, p);
   assert.equal(prepared.ready, true);
   assert.equal(prepared.confirmed, false);
-  const wrong = questionPreparation(ep, q, p, {
-    alias: { answer: true, evidence: false },
-  });
-  assert.equal(wrong.label, "조사 다시 검토");
-  assert.equal(wrong.needsReview, true);
-  assert.equal(
-    questionPreparation(ep, q, p, { alias: { answer: true, evidence: true } })
-      .confirmed,
-    true,
-  );
+  const checked = applyAction(p, { type: "solve" });
+  assert.equal(checked.feedback!.alias.answer, true);
+  assert.equal(checked.progress.solved.length, 0);
+  assert.deepEqual(questionPreparation(ep, q, checked.progress), prepared);
+  const incorrect = applyAction(p, {
+    type: "draft",
+    question: q.id,
+    draft: { answer: "우편함", evidence: [] },
+  }).progress;
+  const rejected = applyAction(incorrect, { type: "solve" });
+  assert.equal(rejected.feedback!.alias.answer, false);
+  assert.deepEqual(questionPreparation(ep, q, rejected.progress), prepared);
+  let completed = p;
+  for (const [question, [answer]] of Object.entries(walkthrough[0]))
+    completed = applyAction(completed, {
+      type: "draft",
+      question,
+      draft: { answer, evidence: [] },
+    }).progress;
+  completed = applyAction(completed, { type: "solve" }).progress;
+  assert.equal(questionPreparation(ep, q, completed).confirmed, true);
   p = applyAction(p, { type: "pin", record: "1-2" }).progress;
   assert.equal(questionPreparation(ep, q, p).ready, false);
   assert.equal(questionPreparation(ep, q, p).evidenceCount, 0);

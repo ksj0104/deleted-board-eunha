@@ -1,8 +1,14 @@
 import type { RecordFile } from "./cases";
 import type { Progress } from "./game";
+import {
+  settlementScan,
+  settlementPieceSrc,
+  type DocumentScan,
+} from "./document-scans";
 
 export type ShreddedDocument = {
-  pieces: { id: string; label: string }[];
+  pieces: { id: string; label: string; src?: string }[];
+  scan?: DocumentScan;
   initial: string[];
   rows: string[][];
   transcript: string[];
@@ -11,13 +17,14 @@ export type Restoration = { order: string[]; complete: boolean };
 
 // Each column is one recovered bundle. Labels identify pieces, not their order.
 export const settlementScraps: ShreddedDocument = {
+  scan: settlementScan,
   pieces: [
-    { id: "cedar", label: "라" },
-    { id: "reed", label: "가" },
-    { id: "ash", label: "바" },
-    { id: "elm", label: "나" },
-    { id: "pine", label: "마" },
-    { id: "birch", label: "다" },
+    { id: "cedar", label: "라", src: settlementPieceSrc("cedar") },
+    { id: "reed", label: "가", src: settlementPieceSrc("reed") },
+    { id: "ash", label: "바", src: settlementPieceSrc("ash") },
+    { id: "elm", label: "나", src: settlementPieceSrc("elm") },
+    { id: "pine", label: "마", src: settlementPieceSrc("pine") },
+    { id: "birch", label: "다", src: settlementPieceSrc("birch") },
   ],
   initial: ["elm", "birch", "cedar", "pine", "reed", "ash"],
   rows: [

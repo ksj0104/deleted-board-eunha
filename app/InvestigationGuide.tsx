@@ -1,14 +1,13 @@
 "use client";
 import React from "react";
 import type { Episode, RecordFile } from "../lib/cases";
-import type { Feedback, Progress } from "../lib/game";
+import type { Progress } from "../lib/game";
 import { investigationGuides, questionPreparation } from "../lib/investigation";
 import { mainCase, caseThreads, inquiryDiscovered } from "../lib/narrative";
 
 export default function InvestigationGuide({
   episode,
   progress,
-  feedback,
   onQuestion,
   onOpen,
   onHint,
@@ -16,7 +15,6 @@ export default function InvestigationGuide({
 }: {
   episode: Episode;
   progress: Progress;
-  feedback: Feedback | null;
   onQuestion: (id?: string) => void;
   onOpen: (record: RecordFile) => void;
   onHint: () => void;
@@ -27,15 +25,12 @@ export default function InvestigationGuide({
     inquiryDiscovered(episode, q, progress),
   );
   const states = discovered.map((q) =>
-    questionPreparation(episode, q, progress, feedback),
+    questionPreparation(episode, q, progress),
   );
   const solved = progress.solved.includes(episode.id);
-  const ready = states.filter(
-    (s) => s.confirmed || (s.ready && !s.needsReview),
-  ).length;
+  const ready = states.filter((s) => s.confirmed || s.ready).length;
   const next = discovered.find(
-    (_, i) =>
-      !states[i].confirmed && (!states[i].ready || states[i].needsReview),
+    (_, i) => !states[i].confirmed && !states[i].ready,
   );
   const unread = episode.records.find((r) => !progress.read.includes(r.id));
   const allPrepared =
@@ -87,9 +82,6 @@ export default function InvestigationGuide({
                   </span>
                   <span>풀이에 필요한 단서 수집됨</span>
                 </div>
-                {!solved && feedback?.[q.id]?.evidenceMessage && (
-                  <p className="feedback">{feedback[q.id].evidenceMessage}</p>
-                )}
                 <button
                   className="text-button"
                   aria-label={`${inquiry.title} 조사 노트 열기`}

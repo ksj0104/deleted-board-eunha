@@ -11,6 +11,8 @@ import {
   type InvestigationState,
 } from "../lib/fieldwork";
 import RecordArtifact from "./RecordArtifact";
+import DocumentScanViewer from "./DocumentScanViewer";
+import { documentScans } from "../lib/document-scans";
 import { useSound } from "./sound-context";
 
 const mapNodes = [
@@ -300,6 +302,12 @@ export default function InvestigationWorkbench({
           </div>
           {loaded ? (
             <>
+              {documentScans[source] && (
+                <DocumentScanViewer
+                  key={source}
+                  pages={documentScans[source]}
+                />
+              )}
               {material.length > 0 && (
                 <p className="material-help">
                   항목을 눌러 펼친 뒤 비교 칸을 누르세요. 마우스로 끌어 놓아도
@@ -351,7 +359,7 @@ export default function InvestigationWorkbench({
                 open={material.length === 0}
               >
                 <summary>이 자료의 전체 원본을 옆에 놓기</summary>
-                <RecordArtifact record={recordById(source)!} />
+                <RecordArtifact record={recordById(source)!} showScan={false} />
               </details>
             </>
           ) : (

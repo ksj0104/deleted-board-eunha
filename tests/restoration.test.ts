@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import sharp from "sharp";
+import { readFile } from "node:fs/promises";
+import { documentScans } from "../lib/document-scans";
 import { applyAction, freshProgress, grade } from "../lib/game";
 import { recordById } from "../lib/cases";
 import { readableParagraphs, restorationFor } from "../lib/restoration";
@@ -15,6 +18,48 @@ const initial = () => ({
   started: true,
   active: 3,
   solved: [1, 2],
+});
+
+test("document scans: all originals are readable-size assets and six actual crops reconstruct the exact memo pixels", async () => {
+  for (const page of Object.values(documentScans).flat()) {
+    const bytes = await readFile(`public/${page.src}`);
+    const image = await sharp(bytes).metadata();
+    assert.equal(image.format, "webp");
+    assert.ok(image.width! >= 1024 && image.height! >= 1024);
+    assert.ok(bytes.length > 10000);
+  }
+  const doc = record.shredded!;
+  const original = await sharp(`public/${doc.scan!.src}`)
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const { width, height } = original.info;
+  const layers = [];
+  let left = 0;
+  for (const id of restoredPaperOrder) {
+    const piece = doc.pieces.find((piece) => piece.id === id)!;
+    const image = await sharp(`public/${piece.src}`).metadata();
+    assert.equal(image.height, height);
+    layers.push({ input: `public/${piece.src}`, left, top: 0 });
+    left += image.width!;
+  }
+  assert.equal(
+    left,
+    width,
+    "every column of the generated image must be present exactly once",
+  );
+  const assembled = await sharp({
+    create: { width, height, channels: 3, background: "#ffffff" },
+  })
+    .composite(layers)
+    .removeAlpha()
+    .raw()
+    .toBuffer();
+  assert.deepEqual(
+    assembled,
+    original.data,
+    "the puzzle uses real image crops, without retyped or omitted pixels",
+  );
 });
 
 test("restoration: only complete, valid and accessible paper can become deduction evidence", () => {

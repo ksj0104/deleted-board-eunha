@@ -13,6 +13,11 @@ import { walkthrough, restoredPaperOrder, cctvAlignment } from "./walkthrough";
 import { investigationActions, investigationWalkthrough } from "./walkthrough";
 import { investigationForEpisode } from "../lib/fieldwork";
 import { mainCase } from "../lib/narrative";
+import {
+  documentScans,
+  settlementScan,
+  settlementPieceSrc,
+} from "../lib/document-scans";
 import { deliveries, isPublicRecord } from "../lib/world";
 import Game from "../app/Game";
 import { SOUND_STORAGE_KEY } from "../lib/sound";
@@ -275,6 +280,72 @@ test("UI: CCTV comparison is discovered from two records, persists drag and keyb
   dom.window.localStorage.removeItem(LOCAL_SAVE_KEY);
 });
 
+test("UI: financial records show scanned invoice, supplier letter and bank confirmation with stacked zoom", async () => {
+  const progress = {
+    ...freshProgress(),
+    started: true,
+    solved: [1, 2],
+    active: 3,
+    introduced: [1, 2, 3],
+  };
+  dom.window.localStorage.setItem(LOCAL_SAVE_KEY, JSON.stringify(progress));
+  const client = createLocalGameClient(() => dom.window.localStorage);
+  const user = userEvent.setup({ document: dom.window.document });
+  render(<Game client={client} />);
+  await screen.findByRole("heading", { name: "은하아파트 주민마당" });
+  const source = recordById("3-2")!;
+  await openSourceRecord(user, source);
+  const original = screen.getByRole("dialog", { name: source.title });
+  assert.equal(
+    within(original).getByRole("img").getAttribute("src"),
+    documentScans["3-2"][0].src,
+  );
+  await user.click(
+    within(original).getByRole("button", { name: "업체 회신 공문" }),
+  );
+  assert.equal(
+    within(original).getByRole("img").getAttribute("src"),
+    documentScans["3-2"][1].src,
+  );
+  await user.click(
+    within(original).getByRole("button", { name: "업체 회신 공문 확대" }),
+  );
+  const zoom = screen.getByRole("dialog", { name: "문서 원본 확대" });
+  await user.click(
+    within(zoom).getByRole("button", { name: "세부 확대 150%" }),
+  );
+  assert.ok(zoom.querySelector(".scan-inspection.zoomed"));
+  await user.click(within(zoom).getByRole("button", { name: "세금계산서" }));
+  assert.equal(
+    within(zoom).getByRole("img").getAttribute("src"),
+    documentScans["3-2"][0].src,
+  );
+  assert.equal(zoom.querySelector(".scan-inspection.zoomed"), null);
+  fireEvent(zoom, new dom.window.Event("cancel", { cancelable: true }));
+  assert.equal(screen.queryByRole("dialog", { name: "문서 원본 확대" }), null);
+  assert.ok(screen.getByRole("dialog", { name: source.title }));
+  await user.click(within(original).getByRole("button", { name: "닫기" }));
+  const bank = recordById("3-3")!;
+  await openSourceRecord(user, bank);
+  const bankDialog = screen.getByRole("dialog", { name: bank.title });
+  assert.equal(
+    within(bankDialog).getByRole("img").getAttribute("src"),
+    documentScans["3-3"][0].src,
+  );
+  await user.click(
+    within(bankDialog).getByRole("button", { name: /직접 조사 열기/ }),
+  );
+  const desk = screen.getByRole("dialog", { name: "지급 전표 대조대" });
+  await user.click(
+    within(desk).getByRole("button", { name: /3-3.*공동관리비/ }),
+  );
+  assert.equal(
+    within(desk).getByRole("img").getAttribute("src"),
+    documentScans["3-3"][0].src,
+  );
+  dom.window.localStorage.removeItem(LOCAL_SAVE_KEY);
+});
+
 test("UI: shredded paper supports keyboard, drag, save retry, reopening, reconstruction and collection", async () => {
   const progress = {
     ...freshProgress(),
@@ -299,6 +370,20 @@ test("UI: shredded paper supports keyboard, drag, save retry, reopening, reconst
   await screen.findByRole("heading", { name: "은하아파트 주민마당" });
   await openSourceRecord(user, record);
   let dialog = screen.getByRole("dialog", { name: record.title });
+  assert.equal(dialog.querySelectorAll(".shred-image img").length, 6);
+  assert.equal(dialog.querySelector(".shred-fragment"), null);
+  assert.equal(
+    dialog.querySelector(`img[src="${settlementScan.src}"]`),
+    null,
+    "the intact image stays hidden before reconstruction",
+  );
+  for (const strip of dialog.querySelectorAll<HTMLButtonElement>(
+    ".shred-strip",
+  ))
+    assert.equal(
+      strip.querySelector("img")!.getAttribute("src"),
+      settlementPieceSrc(strip.dataset.piece!),
+    );
   assert.ok(
     (
       within(dialog).getByRole("button", {
@@ -369,6 +454,16 @@ test("UI: shredded paper supports keyboard, drag, save retry, reopening, reconst
   dialog = screen.getByRole("dialog", { name: record.title });
   await reconstructPaper(user, dialog);
   assert.ok(within(dialog).getByText(record.shredded!.transcript[0]));
+  await user.click(
+    within(dialog).getByRole("button", { name: "복원한 결산 수정 쪽지 확대" }),
+  );
+  const enlarged = screen.getByRole("dialog", { name: "문서 원본 확대" });
+  assert.equal(
+    within(enlarged).getByRole("img").getAttribute("src"),
+    settlementScan.src,
+  );
+  await user.click(within(enlarged).getByRole("button", { name: "닫기" }));
+  assert.ok(screen.getByRole("dialog", { name: record.title }));
   assert.equal(
     dialog.querySelector(".record-inquiries"),
     null,
@@ -844,10 +939,121 @@ test("UI: legacy answers remain while the notebook automatically links the colle
   assert.equal(within(card).queryByRole("checkbox"), null);
   await investigateCase(user, 8);
   await user.click(screen.getByRole("button", { name: /내 추리 검증하기/ }));
-  await within(card).findByText("입증 완료");
+  await screen.findByText(
+    "아직 사건을 해결하지 못했습니다. 모은 단서와 추리를 다시 검토해 주세요.",
+  );
+  assert.equal(within(card).queryByText("입증 완료"), null);
   assert.equal(state.solved.length, 7);
   assert.ok(state.drafts[8].money.evidence.length >= 3);
   assert.equal(state.notes[1], "이전 메모");
+});
+
+test("UI: failed verification reveals neither wrong questions nor partial success in the notebook and goals", async () => {
+  dom.window.localStorage.removeItem(LOCAL_SAVE_KEY);
+  const client = createLocalGameClient(() => dom.window.localStorage);
+  await client.request({ type: "start" });
+  for (const action of investigationActions(1)) await client.request(action);
+  for (const [question, [answer]] of Object.entries(walkthrough[0]))
+    await client.request({
+      type: "draft",
+      question,
+      draft: {
+        answer: question === "alias" ? "우편함" : answer,
+        evidence: [],
+      },
+    });
+  await client.request({
+    type: "note",
+    text: "내 가설은 스스로 다시 검토한다",
+  });
+  const user = userEvent.setup({ document: dom.window.document });
+  render(<Game client={client} />);
+  await user.click(await screen.findByRole("button", { name: "해결 목표" }));
+  const goalSnapshot = () =>
+    screen
+      .getByRole("dialog", { name: "현재 사건의 해결 목표" })
+      .querySelector(".investigation-guide")!.innerHTML;
+  const initialGoals = goalSnapshot();
+  await user.click(
+    within(
+      screen.getByRole("dialog", { name: "현재 사건의 해결 목표" }),
+    ).getByRole("button", { name: "닫기" }),
+  );
+  await user.click(screen.getByRole("button", { name: "추리 노트" }));
+  const failure =
+    "아직 사건을 해결하지 못했습니다. 모은 단서와 추리를 다시 검토해 주세요.";
+  const notebook = () => screen.getByRole("dialog", { name: "추리 노트" });
+  const cards = () =>
+    [...notebook().querySelectorAll(".deduction-card")].map(
+      (card) => card.outerHTML,
+    );
+  const verifyFailure = async () => {
+    const before = cards();
+    const prepared = notebook()
+      .querySelector(".submit-row p")!
+      .textContent!.split("·")[0];
+    await user.click(
+      within(notebook()).getByRole("button", { name: /내 추리 검증하기/ }),
+    );
+    await within(notebook()).findByText(failure);
+    assert.deepEqual(
+      cards(),
+      before,
+      "question markup cannot disclose even a correct answer",
+    );
+    assert.equal(
+      notebook().querySelector(".submit-row p")!.textContent!.split("·")[0],
+      prepared,
+    );
+    assert.equal(
+      notebook().querySelectorAll(".verdict, .deduction-card .feedback").length,
+      0,
+    );
+    assert.equal(notebook().querySelectorAll(".feedback").length, 1);
+    assert.equal(screen.queryByRole("dialog", { name: "사건 해결" }), null);
+    await user.click(within(notebook()).getByRole("button", { name: "닫기" }));
+    await user.click(screen.getByRole("button", { name: "해결 목표" }));
+    assert.equal(
+      goalSnapshot(),
+      initialGoals,
+      "goals and recommended question cannot identify a wrong answer",
+    );
+    await user.click(
+      within(
+        screen.getByRole("dialog", { name: "현재 사건의 해결 목표" }),
+      ).getByRole("button", { name: "닫기" }),
+    );
+    await user.click(screen.getByRole("button", { name: "추리 노트" }));
+  };
+  await verifyFailure();
+  const alias = document.getElementById("question-1-alias")!;
+  const meeting = document.getElementById("question-1-meeting")!;
+  await user.click(within(alias).getByRole("radio", { name: /계단참/ }));
+  assert.equal(within(notebook()).queryByText(failure), null);
+  const otherPlace = episodes[0].questions
+    .find((q) => q.id === "meeting")!
+    .options!.find((option) => option !== walkthrough[0].meeting[0])!;
+  await user.click(
+    within(meeting).getByRole("radio", { name: new RegExp(otherPlace) }),
+  );
+  await verifyFailure();
+  assert.equal((await client.request()).progress.attempts[1], 2);
+  await user.click(
+    within(document.getElementById("question-1-meeting")!).getByRole("radio", {
+      name: /동문 건너편 달빛세탁소/,
+    }),
+  );
+  await user.click(
+    within(notebook()).getByRole("button", { name: /내 추리 검증하기/ }),
+  );
+  const resolution = await screen.findByRole("dialog", { name: "사건 해결" });
+  await user.click(within(resolution).getByRole("button", { name: "닫기" }));
+  assert.equal(notebook().querySelectorAll(".verdict.correct").length, 3);
+  assert.equal(within(notebook()).queryByText(failure), null);
+  const saved = (await client.request()).progress;
+  assert.deepEqual(saved.solved, [1]);
+  assert.equal(saved.notes[1], "내 가설은 스스로 다시 검토한다");
+  dom.window.localStorage.removeItem(LOCAL_SAVE_KEY);
 });
 
 test("UI: goals stay in a modal and notebook questions appear only after sufficient evidence is collected", async () => {
@@ -1170,7 +1376,12 @@ test(
       await click(screen.getByRole("button", { name: "추리 노트" }));
       if (investigationWalkthrough[ep.id]) await investigateCase(user, ep.id);
       await click(screen.getByRole("button", { name: /내 추리 검증하기/ }));
-      assert.equal(document.querySelectorAll(".verdict").length, 3);
+      assert.equal(document.querySelectorAll(".verdict").length, 0);
+      assert.ok(
+        screen.getByText(
+          "아직 사건을 해결하지 못했습니다. 모은 단서와 추리를 다시 검토해 주세요.",
+        ),
+      );
       assert.equal(state.solved.length, ep.id - 1);
       await user.click(screen.getByRole("button", { name: /힌트 \d\/3/ }));
       await click(screen.getByRole("button", { name: "1단계 힌트 열기" }));

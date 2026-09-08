@@ -1,5 +1,5 @@
 import type { Episode, Question } from "./cases";
-import type { Feedback, Progress } from "./game";
+import type { Progress } from "./game";
 import { automaticEvidence } from "./automatic-evidence";
 import { investigationForEpisode, investigationState } from "./fieldwork";
 import { calibrationFor } from "./calibration";
@@ -109,7 +109,6 @@ export function questionPreparation(
   episode: Episode,
   question: Question,
   progress: Progress,
-  feedback?: Feedback | null,
 ) {
   const draft = progress.drafts[episode.id]?.[question.id];
   const answered =
@@ -126,24 +125,16 @@ export function questionPreparation(
       !["time", "timeline"].includes(question.id) ||
       calibrationFor(progress).confirmed;
   const ready = answered && evidence !== null && investigated;
-  const result = feedback?.[question.id];
-  const confirmed =
-    progress.solved.includes(episode.id) ||
-    !!(result?.answer && result.evidence);
-  const needsReview =
-    !confirmed && !!result && (!result.answer || !result.evidence);
+  // Preparation describes work completed by the player, never partial grading.
+  const confirmed = progress.solved.includes(episode.id);
   const label = confirmed
     ? "입증 완료"
-    : result && !result.answer
-      ? "답 다시 검토"
-      : result && !result.evidence
-        ? "조사 다시 검토"
-        : ready
-          ? "검증 준비됨"
-          : answered
-            ? evidence
-              ? "직접 조사하기"
-              : "단서 더 수집하기"
-            : "답 찾는 중";
-  return { answered, evidenceCount, ready, confirmed, needsReview, label };
+    : ready
+      ? "검증 준비됨"
+      : answered
+        ? evidence
+          ? "직접 조사하기"
+          : "단서 더 수집하기"
+        : "답 찾는 중";
+  return { answered, evidenceCount, ready, confirmed, label };
 }

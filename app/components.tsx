@@ -82,8 +82,9 @@ export function Dialog({
       className={`dialog ${wide ? "wide" : ""}`}
       aria-label={label}
       onCancel={(e) => {
+        e.stopPropagation();
         e.preventDefault();
-        close();
+        if (e.target === e.currentTarget) close();
       }}
       onPointerDownCapture={(e) => {
         // A drag can produce a click targeted at the dialog itself. Remember

@@ -4,6 +4,7 @@ import type { RecordFile } from "../lib/cases";
 import type { Restoration } from "../lib/restoration";
 import { isRestoredOrder } from "../lib/restoration";
 import { useSound } from "./sound-context";
+import DocumentScanViewer from "./DocumentScanViewer";
 
 export default function ShreddedDocument({
   record,
@@ -213,17 +214,23 @@ export default function ShreddedDocument({
                 <span className="shred-position" aria-hidden="true">
                   {position + 1}
                 </span>
-                <span
-                  className={`shred-paper edge-${source}`}
-                  aria-hidden="true"
-                >
-                  {fragments.map((fragment, row) => (
-                    <span className={`shred-fragment row-${row}`} key={row}>
-                      {fragment || "\u00a0"}
-                    </span>
-                  ))}
-                  <span className="shred-rule" />
-                </span>
+                {piece.src ? (
+                  <span className="shred-paper shred-image" aria-hidden="true">
+                    <img src={piece.src} alt="" draggable={false} />
+                  </span>
+                ) : (
+                  <span
+                    className={`shred-paper edge-${source}`}
+                    aria-hidden="true"
+                  >
+                    {fragments.map((fragment, row) => (
+                      <span className={`shred-fragment row-${row}`} key={row}>
+                        {fragment || "\u00a0"}
+                      </span>
+                    ))}
+                    <span className="shred-rule" />
+                  </span>
+                )}
                 <span className="shred-piece-label" aria-hidden="true">
                   조각 {piece.label}
                 </span>
@@ -234,6 +241,7 @@ export default function ShreddedDocument({
       </div>
       {complete ? (
         <>
+          {doc.scan && <DocumentScanViewer pages={[doc.scan]} />}
           <div className="shred-result" role="status">
             <strong>✓ 복원된 단서</strong>
             <p>

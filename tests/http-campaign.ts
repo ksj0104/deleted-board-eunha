@@ -4,6 +4,7 @@ import { walkthrough, restoredPaperOrder, cctvAlignment } from "./walkthrough";
 import { investigationActions } from "./walkthrough";
 import { inspectionCaptures } from "../lib/calibration";
 import { communityImages } from "../lib/community";
+import { documentScans } from "../lib/document-scans";
 import type { Feedback, gameView } from "../lib/game";
 const base = process.env.GAME_TEST_URL ?? "http://localhost:3000";
 let cookie = "";
@@ -220,6 +221,19 @@ assert.match(card.headers.get("content-type") ?? "", /image\/png/);
 for (const path of [
   ...Object.values(communityImages).map((a) => a.src),
   ...inspectionCaptures.map((frame) => frame.src),
+  ...Object.values(documentScans).flatMap((pages) =>
+    pages.map((page) => page.src),
+  ),
+  ...episodes.flatMap((episode) =>
+    episode.records.flatMap((record) =>
+      record.shredded
+        ? [
+            record.shredded.scan!.src,
+            ...record.shredded.pieces.map((piece) => piece.src!),
+          ]
+        : [],
+    ),
+  ),
   ...episodes.map((e) => `/story/${String(e.id).padStart(2, "0")}.webp`),
   ...episodes.flatMap((episode) =>
     episode.records.flatMap(
@@ -233,7 +247,7 @@ for (const path of [
   assert.ok((await img.arrayBuffer()).byteLength > 10000, path);
 }
 console.log(
-  "PASS HTTP: all 19 community/prologue/CCTV images and persisted introduction/reaction state",
+  "PASS HTTP: all 29 game images including document scans and cropped scraps; persisted introduction/reaction state",
 );
 const assets = [
   ...html.matchAll(

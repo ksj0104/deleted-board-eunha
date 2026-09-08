@@ -2,8 +2,16 @@
 import React from "react";
 import type { RecordFile } from "../lib/cases";
 import { artifactClues } from "../lib/fieldwork";
+import { documentScans } from "../lib/document-scans";
+import DocumentScanViewer from "./DocumentScanViewer";
 
-export default function RecordArtifact({ record }: { record: RecordFile }) {
+export default function RecordArtifact({
+  record,
+  showScan = true,
+}: {
+  record: RecordFile;
+  showScan?: boolean;
+}) {
   const clues = artifactClues(record.id);
   return (
     <section
@@ -14,6 +22,9 @@ export default function RecordArtifact({ record }: { record: RecordFile }) {
         <span>보관 원본 · {record.id}</span>
         <time>{record.date}</time>
       </header>
+      {showScan && documentScans[record.id] && (
+        <DocumentScanViewer key={record.id} pages={documentScans[record.id]} />
+      )}
       {clues.length > 0 && (
         <div className="artifact-fields">
           {clues.map((clue) => (

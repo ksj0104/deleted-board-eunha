@@ -1,0 +1,88 @@
+{
+  "generatedWith": "built-in image_gen",
+  "images": [
+    {
+      "id": "invoice",
+      "file": "public/documents/e318-tax-invoice.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 342480,
+      "sha256": "ccb96740c1a221aa881160535a6d9b1d40477b8bd180e29af84721699dd0d525"
+    },
+    {
+      "id": "reply",
+      "file": "public/documents/e318-supplier-reply.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 182262,
+      "sha256": "5dc21e22e6bcb973efa201fc5dcfd8459bdcb0dc428c2968552c55faab72d139"
+    },
+    {
+      "id": "bank",
+      "file": "public/documents/e318-transfer-confirmation.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 186660,
+      "sha256": "f3a4d274f15a0c6ae5b9572d5d1efd3f34da1d6611605e83106aaf3cfc124e01"
+    },
+    {
+      "id": "shred",
+      "file": "public/documents/settlement-memo.webp",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 1689652,
+      "sha256": "ec6a18d7df50e49096d573d8eb708a5227bc1c9b44d464f411cbdfe750ced870"
+    }
+  ],
+  "crops": [
+    {
+      "id": "cedar",
+      "file": "public/documents/settlement-cedar.webp",
+      "left": 0,
+      "top": 0,
+      "width": 256,
+      "height": 1024
+    },
+    {
+      "id": "reed",
+      "file": "public/documents/settlement-reed.webp",
+      "left": 256,
+      "top": 0,
+      "width": 256,
+      "height": 1024
+    },
+    {
+      "id": "ash",
+      "file": "public/documents/settlement-ash.webp",
+      "left": 512,
+      "top": 0,
+      "width": 256,
+      "height": 1024
+    },
+    {
+      "id": "elm",
+      "file": "public/documents/settlement-elm.webp",
+      "left": 768,
+      "top": 0,
+      "width": 256,
+      "height": 1024
+    },
+    {
+      "id": "pine",
+      "file": "public/documents/settlement-pine.webp",
+      "left": 1024,
+      "top": 0,
+      "width": 256,
+      "height": 1024
+    },
+    {
+      "id": "birch",
+      "file": "public/documents/settlement-birch.webp",
+      "left": 1280,
+      "top": 0,
+      "width": 256,
+      "height": 1024
+    }
+  ],
+  "pixelReconstruction": "exact match"
+}

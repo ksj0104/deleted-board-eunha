@@ -6,7 +6,7 @@ import {
   type Question,
   type RecordFile,
 } from "../lib/cases";
-import type { Draft, Action, Feedback } from "../lib/game";
+import type { Draft, Action } from "../lib/game";
 import {
   apiGameClient,
   type GameClient,
@@ -122,7 +122,7 @@ function GameScreen({
   const [showReset, setShowReset] = useState(false);
   const [showResolution, setShowResolution] = useState<number | null>(null);
   const [showEnding, setShowEnding] = useState(false);
-  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [verificationFailed, setVerificationFailed] = useState(false);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [noteDirty, setNoteDirty] = useState(false);
   const [fontLarge, setFontLarge] = useState(false);
@@ -349,7 +349,7 @@ function GameScreen({
       setTab(destination);
       setTool(null);
       setQuery("");
-      setFeedback(null);
+      setVerificationFailed(false);
       setShowResolution(null);
       setShowHint(false);
       setSelected(null);
@@ -451,7 +451,7 @@ function GameScreen({
       evidence: [],
     };
   const saveDraft = (q: Question, update: (draft: Draft) => Draft) => {
-    setFeedback(null);
+    setVerificationFailed(false);
     const latest =
       draftEditsRef.current[`${e.id}/${q.id}`]?.draft ??
       savedView.current?.progress.drafts[e.id]?.[q.id] ??
@@ -467,12 +467,11 @@ function GameScreen({
     sound.play("verify");
     const data = await send({ type: "solve", episode: e.id });
     if (data) {
-      setFeedback(data.feedback ?? null);
-      if (
-        data.feedback &&
-        Object.values(data.feedback).every((f) => f.answer && f.evidence)
-      )
-        setShowResolution(e.id);
+      const passed =
+        !!data.feedback &&
+        Object.values(data.feedback).every((f) => f.answer && f.evidence);
+      setVerificationFailed(!passed);
+      if (passed) setShowResolution(e.id);
     }
   };
   const exportReport = () => {
@@ -867,7 +866,6 @@ function GameScreen({
             <InvestigationGuide
               episode={e}
               progress={p}
-              feedback={feedback}
               onQuestion={(id) => {
                 setShowGoals(false);
                 openQuestion(id);
@@ -1055,8 +1053,7 @@ function GameScreen({
               </div>
             )}
             {discoveredQuestions.map((q, i) => {
-              const draft = makeDraft(q),
-                result = feedback?.[q.id];
+              const draft = makeDraft(q);
               return (
                 <section
                   className="deduction-card"
@@ -1067,14 +1064,8 @@ function GameScreen({
                   <div className="question-header">
                     <span className="question-number">{pad(i + 1)}</span>
                     <h2>{q.prompt}</h2>
-                    {result && (
-                      <span
-                        className={`verdict ${result.answer && result.evidence ? "correct" : ""}`}
-                      >
-                        {result.answer && result.evidence
-                          ? "입증 완료"
-                          : "재검토"}
-                      </span>
+                    {solved && (
+                      <span className="verdict correct">입증 완료</span>
                     )}
                   </div>
                   <div className="deduction-motivation">
@@ -1179,16 +1170,6 @@ function GameScreen({
                       ))}
                     </ol>
                   )}
-                  {result && !(result.answer && result.evidence) && (
-                    <p className="feedback" role="status">
-                      {!result.answer
-                        ? "가설을 기록과 다시 대조해 보세요."
-                        : "가설은 맞습니다."}{" "}
-                      {!result.evidence &&
-                        (result.evidenceMessage ??
-                          "필요한 단서를 더 수집하고 직접 조사 결과를 확인해 주세요.")}
-                    </p>
-                  )}
                 </section>
               );
             })}
@@ -1206,13 +1187,19 @@ function GameScreen({
                 </button>
               </div>
             )}
+            {verificationFailed && (
+              <p className="feedback" role="status">
+                아직 사건을 해결하지 못했습니다. 모은 단서와 추리를 다시 검토해
+                주세요.
+              </p>
+            )}
             <div className="submit-row">
               <p>
                 검증할 추리 준비{" "}
                 {
                   discoveredQuestions.filter((q) => {
-                    const s = questionPreparation(e, q, p, feedback);
-                    return s.confirmed || (s.ready && !s.needsReview);
+                    const s = questionPreparation(e, q, p);
+                    return s.confirmed || s.ready;
                   }).length
                 }
                 /{discoveredQuestions.length} <span>·</span> 시도 횟수 제한 없음{" "}
@@ -1769,7 +1756,7 @@ function GameScreen({
                     setTab("board");
                     setQuery("");
                     setTool(null);
-                    setFeedback(null);
+                    setVerificationFailed(false);
                     setSelected(null);
                     setShowPrologue(false);
                   }

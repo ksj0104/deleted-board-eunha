@@ -7,6 +7,7 @@ import { communityImages } from "../lib/community";
 import { inspectionCaptures } from "../lib/calibration";
 import { episodes } from "../lib/cases";
 import { LOCAL_SAVE_KEY } from "../lib/local-game-client";
+import { documentScans } from "../lib/document-scans";
 
 const root = resolve("dist-pages");
 const prefix = "/deleted-board-eunha/";
@@ -93,6 +94,19 @@ try {
   for (const path of [
     ...Object.values(communityImages).map((asset) => asset.src),
     ...inspectionCaptures.map((frame) => frame.src),
+    ...Object.values(documentScans).flatMap((pages) =>
+      pages.map((page) => page.src),
+    ),
+    ...episodes.flatMap((episode) =>
+      episode.records.flatMap((record) =>
+        record.shredded
+          ? [
+              record.shredded.scan!.src,
+              ...record.shredded.pieces.map((piece) => piece.src!),
+            ]
+          : [],
+      ),
+    ),
     ...episodes.map(
       (episode) => `story/${String(episode.id).padStart(2, "0")}.webp`,
     ),
@@ -181,7 +195,7 @@ try {
     first.window.close();
   }
   console.log(
-    `PASS Pages: ${base} — HTML, CSS/JS, 19 game images including CCTV, share image, production bundle start and browser save restoration; no API calls`,
+    `PASS Pages: ${base} — HTML, CSS/JS, 29 game images including documents and cropped scraps, share image, production bundle start and browser save restoration; no API calls`,
   );
 } finally {
   if (server.listening)
