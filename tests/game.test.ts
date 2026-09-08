@@ -8,7 +8,7 @@ import {
   gameView,
   unlocked,
 } from "../lib/game";
-import { walkthrough, restoredPaperOrder } from "./walkthrough";
+import { walkthrough, restoredPaperOrder, cctvAlignment } from "./walkthrough";
 import { communityPosts } from "../lib/community";
 import { episodeStories } from "../lib/stories";
 import { existsSync } from "node:fs";
@@ -312,6 +312,8 @@ test("full campaign: mistakes, complete supporting evidence, hints, reopen, pers
         }).progress;
       p = applyAction(p, { type: "pin", record: r.id }).progress;
     }
+    if (ep.id === 2)
+      p = applyAction(p, { type: "calibrate", offset: cctvAlignment }).progress;
     for (const [question, [answer, evidence]] of Object.entries(
       walkthrough[ep.id - 1],
     )) {
@@ -644,8 +646,8 @@ const alternativeArguments: [number, string, string[], string][] = [
   [
     2,
     "time",
-    ["2-2", "2-3"],
-    "the unique entrance event can be matched to the standard-time reader",
+    ["2-1", "2-2"],
+    "matching inspection events establish the camera's relation to server time",
   ],
   [
     2,
@@ -656,7 +658,7 @@ const alternativeArguments: [number, string, string[], string][] = [
   [
     2,
     "timeline",
-    ["2-3", "2-6"],
+    ["2-1", "2-2", "2-3", "2-4", "2-6"],
     "independent eyewitness timing can date the outage",
   ],
   [
@@ -768,6 +770,8 @@ test("alternative and corroborating proofs remain valid through draft validation
         }).progress;
       p = applyAction(p, { type: "pin", record: source }).progress;
     }
+    if (ep === 2 && id !== "claim")
+      p = applyAction(p, { type: "calibrate", offset: cctvAlignment }).progress;
     p = applyAction(p, {
       type: "draft",
       question: id,

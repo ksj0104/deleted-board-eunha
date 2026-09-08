@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { episodes } from "../lib/cases";
-import { walkthrough, restoredPaperOrder } from "./walkthrough";
+import { walkthrough, restoredPaperOrder, cctvAlignment } from "./walkthrough";
+import { inspectionCaptures } from "../lib/calibration";
 import { communityImages } from "../lib/community";
 import type { Feedback, gameView } from "../lib/game";
 const base = process.env.GAME_TEST_URL ?? "http://localhost:3000";
@@ -68,11 +69,12 @@ for (const ep of episodes) {
       });
     await request({ type: "pin", record: r.id });
   }
+  if (ep.id === 2) await request({ type: "calibrate", offset: cctvAlignment });
   // Concrete alternative readings and counterexamples, independent of the
   // server's proof rules. Other questions remain empty during these probes.
   const proofProbes: Record<number, [string, string[], boolean][]> = {
     2: [
-      ["timeline", ["2-3", "2-6"], true],
+      ["timeline", ["2-1", "2-2", "2-3", "2-6"], true],
       ["timeline", ["2-1", "2-6"], false],
     ],
     5: [
@@ -201,6 +203,7 @@ assert.equal(card.status, 200);
 assert.match(card.headers.get("content-type") ?? "", /image\/png/);
 for (const path of [
   ...Object.values(communityImages).map((a) => a.src),
+  ...inspectionCaptures.map((frame) => frame.src),
   ...episodes.map((e) => `/story/${String(e.id).padStart(2, "0")}.webp`),
   ...episodes.flatMap((episode) =>
     episode.records.flatMap(
@@ -214,7 +217,7 @@ for (const path of [
   assert.ok((await img.arrayBuffer()).byteLength > 10000, path);
 }
 console.log(
-  "PASS HTTP: all 16 community/prologue/CCTV images and persisted introduction/reaction state",
+  "PASS HTTP: all 19 community/prologue/CCTV images and persisted introduction/reaction state",
 );
 const assets = [
   ...html.matchAll(

@@ -10,6 +10,6 @@
 
 > Edit this social card. Preserve the entire composition, paper textures, dark teal and coral colors, apartment photograph, and these exact existing title texts: 삭제된 게시판 / DELETED BOARD / 8개의 사건, 하나의 진실 / 0318. Important correction: Remove ALL OTHER readable text and building names and numbers from the apartment photograph and from all background paper notices. Replace writing on background notices with abstract blurred ink lines or solid redaction lines, not legible letters. The depicted building should have no name or number. Keep the four specified title/label texts unchanged and sharp. No added words.
 
-게임 UI는 CSS, 텍스트, 기본 문자 기호와 아래 사진으로 구성합니다. 프롤로그 이미지는 사건의 분위기를 표현하는 연출 장면입니다. CCTV 자료 2-2는 실제 추리 근거를 이미지로 전달하며, 화면의 시각·문 상태·인물 위치를 보고 다른 기록과 대조합니다. 출처와 생성 프롬프트는 [CCTV_ASSETS.md](CCTV_ASSETS.md)에 기록했습니다. 다른 문서의 수치·계정 등은 게시글과 표로 제공합니다.
+게임 UI는 CSS, 텍스트, 기본 문자 기호와 아래 사진으로 구성합니다. 프롤로그 이미지는 사건의 분위기를 표현하는 연출 장면입니다. CCTV 자료 2-2는 실제 추리 근거를 이미지로 전달하며, 화면의 시각·문 상태·인물 위치를 보고 다른 기록과 대조합니다. 사건 캡처 두 장의 출처와 프롬프트는 [CCTV_ASSETS.md](CCTV_ASSETS.md), 점검 캡처 세 장과 기록 대조 설계는 [CCTV_TIME_COMPARISON.md](CCTV_TIME_COMPARISON.md)에 기록했습니다. 다른 문서의 수치·계정 등은 게시글과 표로 제공합니다.
 
 주민 사진 6장과 에피소드별 장면 8장의 출처·프롬프트는 [IMMERSION_ASSETS.md](IMMERSION_ASSETS.md)에 기록했습니다.

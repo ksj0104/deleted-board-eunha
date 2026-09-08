@@ -9,7 +9,7 @@ import {
   type RecordFile,
 } from "../lib/cases";
 import { freshProgress, applyAction, gameView, type Action } from "../lib/game";
-import { walkthrough, restoredPaperOrder } from "./walkthrough";
+import { walkthrough, restoredPaperOrder, cctvAlignment } from "./walkthrough";
 import { caseThreads, mainCase } from "../lib/narrative";
 import { communityRecords, deliveries, isPublicRecord } from "../lib/world";
 import Game from "../app/Game";
@@ -126,6 +126,151 @@ test("UI: CCTV evidence uses image captures with selection and zoom while keepin
   dom.window.localStorage.removeItem(LOCAL_SAVE_KEY);
 });
 
+test("UI: CCTV comparison is discovered from two records, persists drag and keyboard alignment, and unlocks corrected time", async () => {
+  const progress = {
+    ...freshProgress(),
+    started: true,
+    solved: [1],
+    active: 2,
+    introduced: [1, 2],
+  };
+  dom.window.localStorage.setItem(LOCAL_SAVE_KEY, JSON.stringify(progress));
+  let fail = false;
+  const storage = {
+    getItem: (key: string) => dom.window.localStorage.getItem(key),
+    setItem: (key: string, value: string) => {
+      if (fail) throw new Error("quota");
+      dom.window.localStorage.setItem(key, value);
+    },
+  };
+  const client = createLocalGameClient(() => storage);
+  const user = userEvent.setup({ document: dom.window.document });
+  const mounted = render(<Game client={client} />);
+  await screen.findByRole("heading", { name: "은하아파트 주민마당" });
+  await openSourceRecord(user, recordById("2-2")!);
+  let record = screen.getByRole("dialog", { name: recordById("2-2")!.title });
+  assert.ok(
+    (
+      within(record).getByRole("button", {
+        name: "기록 대조 열기",
+      }) as HTMLButtonElement
+    ).disabled,
+  );
+  assert.equal(
+    within(record).queryByRole("button", { name: "보정 시각" }),
+    null,
+  );
+  await user.click(
+    within(record).getByRole("button", { name: "점검 중 표지가 있는 장면" }),
+  );
+  await user.click(within(record).getByRole("button", { name: "캡처 03" }));
+  assert.ok(within(record).getByRole("img", { name: /20:00:00/ }));
+  await user.click(within(record).getByRole("button", { name: "닫기" }));
+  await openSourceRecord(user, recordById("2-1")!);
+  record = screen.getByRole("dialog", { name: recordById("2-1")!.title });
+  await user.click(
+    within(record).getByRole("button", { name: "기록 대조 열기" }),
+  );
+  let comparison = screen.getByRole("dialog", { name: "기록 대조" });
+  await user.click(
+    within(comparison).getByRole("button", { name: "점검 캡처 2 확대" }),
+  );
+  const capture = screen.getByRole("dialog", { name: "점검 캡처 확대" });
+  assert.ok(within(capture).getByRole("img", { name: /19:58:00/ }));
+  await user.click(within(capture).getByRole("button", { name: "세부 확대 150%" }));
+  assert.ok(capture.querySelector(".cctv-inspection.zoomed"));
+  await user.click(within(capture).getByRole("button", { name: "닫기" }));
+  await user.click(
+    within(comparison).getByRole("button", { name: "대조 확인" }),
+  );
+  await waitFor(() =>
+    assert.ok(comparison.textContent?.includes("세 동작이 아직")),
+  );
+  assert.equal((await client.request()).progress.calibration!.confirmed, false);
+  const track = within(comparison).getByRole("group", {
+    name: "CCTV 시간선 드래그 영역",
+  });
+  const pointer = (type: string, clientX: number) => {
+    const event = new dom.window.Event(type, { bubbles: true });
+    Object.defineProperties(event, {
+      clientX: { value: clientX },
+      button: { value: 0 },
+      pointerId: { value: 1 },
+    });
+    fireEvent(track, event);
+  };
+  pointer("pointerdown", 300);
+  pointer("pointermove", 246);
+  pointer("pointerup", 246);
+  await within(comparison).findByText("시간선 위치 저장됨");
+  assert.equal((await client.request()).progress.calibration!.offset, -3);
+  assert.ok(comparison.hasAttribute("open"));
+  const before = dom.window.localStorage.getItem(LOCAL_SAVE_KEY);
+  fail = true;
+  within(comparison)
+    .getByRole("button", { name: "영상 줄 1분 왼쪽으로" })
+    .focus();
+  await user.keyboard("{Enter}");
+  await within(comparison).findByText("위치를 저장하지 못했습니다");
+  assert.equal(
+    (within(comparison).getByRole("slider") as HTMLInputElement).value,
+    "-4",
+  );
+  assert.equal(dom.window.localStorage.getItem(LOCAL_SAVE_KEY), before);
+  fail = false;
+  await user.click(
+    within(comparison).getByRole("button", { name: "위치 다시 저장" }),
+  );
+  await within(comparison).findByText("시간선 위치 저장됨");
+  await user.click(within(comparison).getByRole("button", { name: "닫기" }));
+  await user.click(
+    within(record).getByRole("button", { name: "기록 대조 열기" }),
+  );
+  comparison = screen.getByRole("dialog", { name: "기록 대조" });
+  assert.equal(
+    (within(comparison).getByRole("slider") as HTMLInputElement).value,
+    "-4",
+  );
+  within(comparison)
+    .getByRole("button", { name: "영상 줄 1분 왼쪽으로" })
+    .focus();
+  await user.keyboard("{Enter>3/}");
+  await user.click(
+    within(comparison).getByRole("button", { name: "대조 확인" }),
+  );
+  await within(comparison).findByText(/✓ 대조 완료/);
+  await user.click(within(comparison).getByRole("button", { name: "닫기" }));
+  await user.click(within(record).getByRole("button", { name: "닫기" }));
+  await openSourceRecord(user, recordById("2-2")!);
+  record = screen.getByRole("dialog", { name: recordById("2-2")!.title });
+  assert.ok(within(record).getByText("20:21"));
+  await user.click(within(record).getByRole("button", { name: "보정 시각" }));
+  assert.ok(within(record).getByText("20:14"));
+  assert.ok(
+    within(record).getByRole("img", { name: /20:21:00/ }),
+    "original capture is preserved",
+  );
+  mounted.unmount();
+  render(<Game client={createLocalGameClient(() => storage)} />);
+  await screen.findByRole("heading", { name: "은하아파트 주민마당" });
+  await openSourceRecord(user, recordById("2-2")!);
+  record = screen.getByRole("dialog", { name: recordById("2-2")!.title });
+  await user.click(
+    within(record).getByRole("button", { name: "기록 대조 열기" }),
+  );
+  comparison = screen.getByRole("dialog", { name: "기록 대조" });
+  assert.ok(within(comparison).getByText(/✓ 대조 완료/));
+  await user.click(
+    within(comparison).getByRole("button", { name: "다시 대조하기" }),
+  );
+  assert.equal(
+    (within(comparison).getByRole("slider") as HTMLInputElement).value,
+    "0",
+  );
+  assert.equal((await client.request()).progress.calibration!.confirmed, true);
+  dom.window.localStorage.removeItem(LOCAL_SAVE_KEY);
+});
+
 test("UI: shredded paper supports keyboard, drag, save retry, reopening, reconstruction and collection", async () => {
   const progress = {
     ...freshProgress(),
@@ -162,9 +307,7 @@ test("UI: shredded paper supports keyboard, drag, save retry, reopening, reconst
     null,
   );
   assert.equal(dialog.querySelector(".record-inquiries"), null);
-  await user.click(
-    within(dialog).getByRole("button", { name: "복원 확인" }),
-  );
+  await user.click(within(dialog).getByRole("button", { name: "복원 확인" }));
   await waitFor(() =>
     assert.ok(dialog.textContent?.includes("아직 글줄이 이어지지 않습니다")),
   );
@@ -360,6 +503,26 @@ async function openSourceRecord(
   }
 }
 
+async function compareCctv(
+  user: ReturnType<typeof userEvent.setup>,
+  dialog: HTMLElement,
+) {
+  await user.click(
+    within(dialog).getByRole("button", { name: "기록 대조 열기" }),
+  );
+  const comparison = screen.getByRole("dialog", { name: "기록 대조" });
+  const left = within(comparison).getByRole("button", {
+    name: "영상 줄 1분 왼쪽으로",
+  });
+  left.focus();
+  await user.keyboard(`{Enter>${Math.abs(cctvAlignment)}/}`);
+  await user.click(
+    within(comparison).getByRole("button", { name: "대조 확인" }),
+  );
+  await within(comparison).findByText(/✓ 대조 완료/);
+  await user.click(within(comparison).getByRole("button", { name: "닫기" }));
+}
+
 async function reconstructPaper(
   user: ReturnType<typeof userEvent.setup>,
   dialog: HTMLElement,
@@ -376,9 +539,7 @@ async function reconstructPaper(
       await user.click(slots[target]);
     }
   }
-  await user.click(
-    within(dialog).getByRole("button", { name: "복원 확인" }),
-  );
+  await user.click(within(dialog).getByRole("button", { name: "복원 확인" }));
   await within(dialog).findByText("✓ 복원된 단서");
 }
 
@@ -1067,6 +1228,7 @@ test(
             null,
             "private files are documents, not social posts",
           );
+        if (r.id === "2-2") await compareCctv(user, dialog);
         if (r.shredded) {
           await reconstructPaper(user, dialog);
           assert.ok(within(dialog).getByText(r.shredded.transcript[0]));

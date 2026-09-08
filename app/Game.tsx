@@ -34,6 +34,8 @@ import { caseThreads, inquiryDiscovered } from "../lib/narrative";
 import InvestigationInbox from "./InvestigationInbox";
 import SoundControls from "./SoundControls";
 import CctvViewer from "./CctvViewer";
+import TimelineComparison from "./TimelineComparison";
+import { calibrationFor, comparisonReady } from "../lib/calibration";
 import ShreddedDocument from "./ShreddedDocument";
 import {
   readableParagraphs,
@@ -89,6 +91,7 @@ function GameScreen({
   sound: SoundPlayer;
 }) {
   const clickIntent = useRef(0);
+  const [showComparison, setShowComparison] = useState(false);
   const [view, setView] = useState<View | null>(null);
   const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
@@ -198,7 +201,8 @@ function GameScreen({
                   ? "select"
                   : "deselect",
               );
-            else if (action.type === "restore") sound.play("success");
+            else if (action.type === "restore" || action.type === "calibrate")
+              sound.play("success");
             else if (action.type === "hint") sound.play("notice");
             else if (action.type === "start" || action.type === "intro")
               sound.play("open");
@@ -224,7 +228,11 @@ function GameScreen({
           } catch (e) {
             // A superseded request must not mark the newer selection as failed.
             if (edit && !isLatestEdit()) return null;
-            if (!["read", "note", "draft", "arrange"].includes(action.type))
+            if (
+              !["read", "note", "draft", "arrange", "align"].includes(
+                action.type,
+              )
+            )
               sound.play("retry");
             if (edit)
               updateDraftEdits((edits) => ({
@@ -898,7 +906,7 @@ function GameScreen({
                   <h3>{r.title}</h3>
                   <p>
                     {r.surveillance
-                      ? `${r.surveillance.camera} 보관 캡처 ${r.surveillance.frames.length}장 · 원문에서 이미지 확인`
+                      ? `${r.surveillance.camera} 보관 캡처 5장 · 원문에서 이미지 확인`
                       : r.shredded
                         ? "복원한 결산 수정 쪽지 · 두 지급 내역과 회신"
                         : r.paragraphs[0]}
@@ -1245,7 +1253,14 @@ function GameScreen({
                 }
               />
             ) : selected.surveillance ? (
-              <CctvViewer footage={selected.surveillance} />
+              <CctvViewer
+                footage={selected.surveillance}
+                offset={
+                  calibrationFor(p).confirmed
+                    ? calibrationFor(p).offset
+                    : undefined
+                }
+              />
             ) : (
               <div className="document-body">
                 {selected.paragraphs.map((text, i) => (
@@ -1362,6 +1377,27 @@ function GameScreen({
                 <span>댓글과 조회수는 보관 당시의 모습입니다.</span>
               </div>
             )}
+            {["2-1", "2-2"].includes(selected.id) && (
+              <section className="record-comparison-entry">
+                <p>
+                  {comparisonReady(p)
+                    ? "두 자료에서 같은 동작을 찾았다면 함께 놓고 대조해 보세요."
+                    : "정문 작동 기록과 C2 보관 화면의 원문을 모두 열면 함께 대조할 수 있습니다."}
+                </p>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={!comparisonReady(p)}
+                  onClick={() => {
+                    sound.play("open");
+                    setShowComparison(true);
+                  }}
+                >
+                  기록 대조 열기
+                </button>
+                {calibrationFor(p).confirmed && <span>✓ 대조 결과 저장됨</span>}
+              </section>
+            )}
             <footer className="document-footer">
               <span>
                 {p.pinned.includes(selected.id)
@@ -1396,6 +1432,23 @@ function GameScreen({
                 추리 노트 열기 ↗
               </button>
             </div>
+          </Dialog>
+        )}
+        {showComparison && (
+          <Dialog
+            wide
+            label="기록 대조"
+            onClose={() => setShowComparison(false)}
+          >
+            <TimelineComparison
+              saved={calibrationFor(p)}
+              onSave={async (offset, confirm) =>
+                !!(await send({
+                  type: confirm ? "calibrate" : "align",
+                  offset,
+                }))
+              }
+            />
           </Dialog>
         )}
         {(!p.started ||

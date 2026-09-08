@@ -1,4 +1,5 @@
 // Independently recorded editorial walkthrough; do not generate this from the answer key.
+export const cctvAlignment = -7;
 export const restoredPaperOrder = [
   "cedar",
   "reed",
@@ -20,7 +21,7 @@ export const walkthrough = [
     time: ["20:14", ["2-1", "2-2"]],
     timeline: [
       ["관리동 문 열림", "자료 복사 완료", "동문 출구 통과", "정전 시작"],
-      ["2-3", "2-4"],
+      ["2-1", "2-2", "2-3", "2-4"],
     ],
     claim: ["정전 중에 자료를 복사했다", ["2-3", "2-4"]],
   },

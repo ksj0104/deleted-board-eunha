@@ -4,6 +4,7 @@ import type { Progress } from "../lib/game";
 import type { RecordFile } from "../lib/cases";
 import { deliveries, deliveryRecords, worldStage } from "../lib/world";
 import { readableParagraphs, recordRestored } from "../lib/restoration";
+import { inspectionCaptures } from "../lib/calibration";
 
 export default function InvestigationInbox({
   progress,
@@ -30,6 +31,9 @@ export default function InvestigationInbox({
             r.title,
             ...readableParagraphs(r, progress),
             ...(r.surveillance?.frames.map((frame) => frame.alt) ?? []),
+            ...(r.surveillance
+              ? inspectionCaptures.map((frame) => frame.alt)
+              : []),
           ]),
         ]
           .join(" ")

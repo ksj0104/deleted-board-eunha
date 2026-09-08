@@ -3,6 +3,7 @@
 .incoming-mail-notice,
 .investigation-inbox,
 .dialog:has(.document-title),
+.dialog:has(.timeline-comparison),
 .dialog:has(.cctv-enlarged) {
   --text: #283c37;
   --muted: #53685e;
@@ -1319,6 +1320,268 @@ select:focus-visible {
   font-size: 11px;
 }
 /* Open records use the same paper, ink and controls as the resident board. */
+.record-comparison-entry {
+  margin: 22px 0;
+  padding: 16px;
+  border: 1px solid #a8b9a6;
+  background: #e5ecdf;
+  border-radius: 5px;
+}
+.record-comparison-entry p {
+  font-size: 12px;
+  line-height: 1.9;
+  color: #465a50;
+  margin: 0 0 12px;
+}
+.record-comparison-entry > span {
+  margin-left: 12px;
+  font-size: 11px;
+  color: #355e4c;
+}
+.cctv-sections,
+.cctv-clock-controls > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.cctv-sections button,
+.cctv-clock-controls button {
+  min-height: 40px;
+  padding: 8px 13px;
+  border: 1px solid #708572;
+  border-radius: 4px;
+  background: #fffef9;
+  color: #355e4c;
+  font-size: 12px;
+}
+.cctv-sections button[aria-pressed="true"],
+.cctv-clock-controls button[aria-pressed="true"] {
+  background: #355e4c;
+  color: #fffef9;
+}
+.cctv-clock-controls {
+  padding: 12px 14px;
+  margin: 12px 0;
+  background: #e5ecdf;
+  border: 1px solid #a8b9a6;
+  border-radius: 5px;
+}
+.cctv-clock-controls p {
+  margin: 7px 0;
+  font-size: 12px;
+  color: #465a50;
+}
+.cctv-clock-controls strong {
+  font: 600 23px/1.5 monospace;
+  margin-left: 12px;
+  color: #283c37;
+}
+.cctv-clock-controls small {
+  color: #53685e;
+  font-size: 11px;
+}
+.dialog.wide:has(.timeline-comparison) {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  width: min(1060px, calc(100% - 24px));
+}
+.timeline-comparison > p {
+  font-size: 13px;
+  line-height: 1.95;
+  color: #465a50;
+}
+.timeline-comparison .modal-title {
+  color: #283c37;
+}
+.comparison-filmstrip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 21px 0;
+}
+.comparison-filmstrip button {
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #53675c;
+  border-radius: 4px;
+  background: #20372c;
+  color: #deeadf;
+  cursor: zoom-in;
+}
+.comparison-filmstrip img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.comparison-filmstrip span {
+  display: block;
+  padding: 9px 4px;
+  font-size: 11px;
+}
+.comparison-scroll {
+  border: 1px solid #a8b9a6;
+  border-radius: 5px;
+  overflow: auto;
+  background: #eef0e5;
+  max-width: 100%;
+}
+.comparison-chart {
+  width: 780px;
+  padding: 18px 30px 25px;
+}
+.comparison-axis {
+  position: relative;
+  height: 30px;
+  width: 720px;
+  color: #53685e;
+  font: 10px/1.5 monospace;
+}
+.comparison-axis > span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+.comparison-track-label {
+  display: block;
+  color: #465a50;
+  font-size: 11px;
+  padding: 6px 0;
+}
+.comparison-track {
+  width: 720px;
+  height: 70px;
+  position: relative;
+  background: repeating-linear-gradient(
+    90deg,
+    #9bae9c60 0 1px,
+    transparent 1px 18px
+  );
+  border-bottom: 1px solid #9aaf9b;
+}
+.camera-track {
+  touch-action: none;
+  cursor: ew-resize;
+  border-top: 2px solid #947448;
+  background-color: #eee3cf;
+}
+.camera-track.confirmed {
+  cursor: default;
+  background-color: #dce9d8;
+  border-top-color: #355e4c;
+}
+.sensor-track {
+  border-top: 2px solid #446b60;
+  background-color: #e0e9de;
+}
+.comparison-marker {
+  position: absolute;
+  top: 5px;
+  transform: translateX(-50%);
+  height: 60px;
+  color: #3b4438;
+}
+.comparison-marker b {
+  display: block;
+  text-align: center;
+  width: 16px;
+  font: 600 11px/21px monospace;
+  border: 1px solid #927745;
+  background: #fffaf0;
+  border-radius: 3px;
+}
+.sensor-track .comparison-marker b {
+  border-color: #4a7162;
+  background: #f5fbef;
+}
+.comparison-marker i {
+  display: block;
+  width: 1px;
+  height: 35px;
+  background: currentColor;
+  margin: auto;
+}
+.comparison-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 12px 0 20px;
+  color: #465a50;
+  font-size: 12px;
+}
+.comparison-legend b {
+  color: #355e4c;
+  margin-right: 5px;
+}
+.comparison-controls {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  margin: 20px 0;
+}
+.comparison-controls label {
+  text-align: center;
+  color: #465a50;
+  font-size: 12px;
+}
+.comparison-controls output {
+  display: block;
+  font: 600 21px/1.7 monospace;
+  color: #283c37;
+}
+.comparison-controls input {
+  grid-column: 1/-1;
+  width: 100%;
+  min-height: 40px;
+  accent-color: #355e4c;
+}
+.comparison-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.comparison-actions > span {
+  color: #53685e;
+  font-size: 11px;
+}
+.comparison-result,
+.comparison-hint {
+  padding: 16px;
+  margin: 18px 0 0;
+  border: 1px solid #a8b9a6;
+  border-radius: 5px;
+  background: #e5ecdf;
+  color: #355e4c;
+  font-size: 13px;
+  line-height: 1.95;
+}
+.comparison-result p {
+  margin: 9px 0 14px;
+}
+.comparison-message {
+  color: #355e4c !important;
+}
+.comparison-full-image {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+@media (max-width: 600px) {
+  .comparison-filmstrip {
+    gap: 5px;
+  }
+  .comparison-filmstrip span {
+    font-size: 10px;
+  }
+  .comparison-controls {
+    gap: 8px;
+  }
+  .comparison-controls button {
+    padding-inline: 10px;
+  }
+}
 .shred-workbench {
   margin: 26px 0;
 }

@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { resolve, sep, extname } from "node:path";
 import { JSDOM, VirtualConsole } from "jsdom";
 import { communityImages } from "../lib/community";
+import { inspectionCaptures } from "../lib/calibration";
 import { episodes } from "../lib/cases";
 import { LOCAL_SAVE_KEY } from "../lib/local-game-client";
 
@@ -91,6 +92,7 @@ try {
   }
   for (const path of [
     ...Object.values(communityImages).map((asset) => asset.src),
+    ...inspectionCaptures.map((frame) => frame.src),
     ...episodes.map(
       (episode) => `story/${String(episode.id).padStart(2, "0")}.webp`,
     ),
@@ -179,7 +181,7 @@ try {
     first.window.close();
   }
   console.log(
-    `PASS Pages: ${base} — HTML, CSS/JS, 16 game images including CCTV, share image, production bundle start and browser save restoration; no API calls`,
+    `PASS Pages: ${base} — HTML, CSS/JS, 19 game images including CCTV, share image, production bundle start and browser save restoration; no API calls`,
   );
 } finally {
   if (server.listening)

@@ -3,17 +3,27 @@ import React, { useState } from "react";
 import type { RecordFile } from "../lib/cases";
 import { Dialog } from "./components";
 import { useSound } from "./sound-context";
+import {
+  inspectionCaptures,
+  clockLabel,
+  clockMinutes,
+} from "../lib/calibration";
 
 export default function CctvViewer({
   footage,
+  offset,
 }: {
   footage: NonNullable<RecordFile["surveillance"]>;
+  offset?: number;
 }) {
   const [frame, setFrame] = useState(0);
+  const [inspection, setInspection] = useState(false);
+  const [corrected, setCorrected] = useState(false);
   const [enlarged, setEnlarged] = useState(false);
   const [zoom, setZoom] = useState(false);
   const sound = useSound();
-  const selected = footage.frames[frame];
+  const frames = inspection ? inspectionCaptures : footage.frames;
+  const selected = frames[frame];
   const select = (index: number) => {
     setFrame(index);
     sound?.play("open");
@@ -24,7 +34,7 @@ export default function CctvViewer({
       role="group"
       aria-label="CCTV 캡처 선택"
     >
-      {footage.frames.map((_, index) => (
+      {frames.map((_, index) => (
         <button
           key={index}
           type="button"
@@ -36,15 +46,67 @@ export default function CctvViewer({
       ))}
     </div>
   );
+  const clockControls = offset !== undefined && (
+    <div className="cctv-clock-controls">
+      <div role="group" aria-label="시각 표시 방식">
+        <button
+          type="button"
+          aria-pressed={!corrected}
+          onClick={() => setCorrected(false)}
+        >
+          원본 시각
+        </button>
+        <button
+          type="button"
+          aria-pressed={corrected}
+          onClick={() => setCorrected(true)}
+        >
+          보정 시각
+        </button>
+      </div>
+      <p aria-live="polite">
+        {corrected ? "대조한 표준시" : "원본 화면 시각"}{" "}
+        <strong>
+          {clockLabel(
+            clockMinutes(selected.displayTime) + (corrected ? offset : 0),
+          )}
+        </strong>
+      </p>
+      <small>이미지 속 시각은 원본 그대로 보존됩니다.</small>
+    </div>
+  );
   return (
     <section className="cctv-viewer" aria-label={`${footage.camera} 보관 영상`}>
       <header>
         <span>{footage.camera} · 보관 화면</span>
         <span>
-          캡처 {frame + 1} / {footage.frames.length}
+          캡처 {frame + 1} / {frames.length}
         </span>
       </header>
+      <div className="cctv-sections" role="group" aria-label="보관 구간 선택">
+        <button
+          type="button"
+          aria-pressed={!inspection}
+          onClick={() => {
+            setInspection(false);
+            setFrame(0);
+          }}
+        >
+          회색 외투 장면
+        </button>
+        <button
+          type="button"
+          aria-pressed={inspection}
+          onClick={() => {
+            setInspection(true);
+            setFrame(0);
+          }}
+        >
+          점검 중 표지가 있는 장면
+        </button>
+      </div>
       {frameButtons}
+      {clockControls}
       <button
         className="cctv-preview"
         type="button"
@@ -65,6 +127,7 @@ export default function CctvViewer({
         <Dialog wide label="CCTV 캡처 확대" onClose={() => setEnlarged(false)}>
           <div className="cctv-enlarged">
             <h2>{footage.camera} 보관 화면</h2>
+            {clockControls}
             <div className="cctv-toolbar">
               {frameButtons}
               <button

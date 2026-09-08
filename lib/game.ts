@@ -9,6 +9,13 @@ import {
 import { solutions, resolutions, endings, type Solution } from "./solutions";
 import { canReadRecord } from "./world";
 import { evidenceLimit, evidenceSelectionLabel } from "./investigation";
+import {
+  calibrationFor,
+  comparisonMatches,
+  comparisonReady,
+  validOffset,
+  type Calibration,
+} from "./calibration";
 
 export type Draft = { answer: string | string[]; evidence: string[] };
 export type Progress = {
@@ -21,6 +28,7 @@ export type Progress = {
   liked?: string[];
   introduced?: number[];
   restorations?: Record<string, Restoration>;
+  calibration?: Calibration;
   notes: Record<string, string>;
   drafts: Record<string, Record<string, Draft>>;
   hints: Record<string, number>;
@@ -36,6 +44,7 @@ export type Action = {
   text?: string;
   ending?: string;
   pieces?: string[];
+  offset?: number;
 };
 export type Feedback = Record<
   string,
@@ -51,6 +60,7 @@ export const freshProgress = (): Progress => ({
   liked: [],
   introduced: [],
   restorations: {},
+  calibration: { offset: 0, confirmed: false },
   notes: {},
   drafts: {},
   hints: {},
@@ -142,6 +152,7 @@ export function applyAction(
   action: Action,
 ): { progress: Progress; feedback?: Feedback } {
   const p: Progress = structuredClone(current);
+  p.calibration ??= calibrationFor(current);
   p.restorations ??= Object.fromEntries(
     allRecords
       .filter((record) => record.shredded && current.read.includes(record.id))
@@ -159,7 +170,23 @@ export function applyAction(
   } else if (action.type === "intro")
     p.introduced = [...new Set([...(p.introduced ?? []), ep])];
   else if (action.type === "visit") p.active = ep;
-  else if (action.type === "arrange" || action.type === "restore") {
+  else if (action.type === "align" || action.type === "calibrate") {
+    if (!canReadRecord(recordById("2-1")!, p) || !comparisonReady(p))
+      throw new Error(
+        "정문 작동 기록과 C2 보관 화면을 모두 읽은 뒤 대조해 주세요.",
+      );
+    if (!validOffset(action.offset))
+      throw new Error("시간선은 한 칸씩, 표시된 범위 안에서 움직여 주세요.");
+    if (action.type === "calibrate" && !comparisonMatches(action.offset))
+      throw new Error(
+        "세 동작이 아직 같은 시각에 놓이지 않았습니다. 문 상태와 동작 사이의 간격을 함께 대조해 주세요.",
+      );
+    if (!p.calibration.confirmed)
+      p.calibration = {
+        offset: action.offset,
+        confirmed: action.type === "calibrate",
+      };
+  } else if (action.type === "arrange" || action.type === "restore") {
     const r = recordById(action.record ?? "");
     if (!r?.shredded || !canReadRecord(r, p))
       throw new Error("복원할 수 없는 기록입니다.");
@@ -239,6 +266,14 @@ export function applyAction(
     p.hints[ep] = Math.min(3, (p.hints[ep] ?? 0) + 1);
   else if (action.type === "solve") {
     const feedback = grade(ep, p.drafts[ep] ?? {}, p.pinned);
+    if (ep === 2 && !p.calibration.confirmed && !p.solved.includes(2))
+      for (const id of ["time", "timeline"])
+        feedback[id] = {
+          ...feedback[id],
+          evidence: false,
+          evidenceMessage:
+            "시설 기록과 영상의 같은 동작을 기록 대조에서 확인해 주세요. 대조 결과가 있어야 대상 장면을 표준시 기록에 연결할 수 있습니다.",
+        };
     p.attempts[ep] = (p.attempts[ep] ?? 0) + 1;
     if (
       Object.values(feedback).every((f) => f.answer && f.evidence) &&
