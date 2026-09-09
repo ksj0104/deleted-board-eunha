@@ -400,6 +400,39 @@ function GameScreen({
     setTab("cases");
     mainRef.current?.focus();
   };
+  const returnToLibrary = async (
+    event: React.MouseEvent<HTMLAnchorElement>,
+  ) => {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    event.preventDefault();
+    const wasSaving = pending > 0 || !!notePending.current;
+    flushNote();
+    let tail: Promise<unknown>;
+    let result: unknown;
+    do {
+      tail = queue.current;
+      result = await tail;
+    } while (tail !== queue.current);
+    if (
+      notePending.current ||
+      Object.keys(draftEditsRef.current).length ||
+      Object.values(investigationEdits).some((edit) => edit.failed) ||
+      (wasSaving && result === null)
+    ) {
+      setError(
+        "아직 저장되지 않은 기록이 있습니다. 다시 저장한 뒤 게임 선택 화면으로 이동해 주세요.",
+      );
+      return;
+    }
+    window.location.hash = "";
+  };
   if (!view)
     return (
       <div className="loading-screen">
@@ -420,6 +453,9 @@ function GameScreen({
             {client.storage === "browser" ? "다시 불러오기" : "다시 연결하기"}
           </button>
         )}
+        <a className="game-selection-link" href="#">
+          ← 게임 선택 화면
+        </a>
       </div>
     );
   // Saved state remains authoritative; outstanding local edits are overlaid
@@ -632,8 +668,12 @@ function GameScreen({
               가<span className="small-a">가</span>{" "}
               {fontLarge ? "기본 글자 크기" : "큰 글자 모드"}
             </button>
-            <a className="curtain-entry" href="#curtain-call">
-              두 번째 게임 · 마지막 커튼콜 ↗
+            <a
+              className="game-selection-link"
+              href="#"
+              onClick={returnToLibrary}
+            >
+              ← 게임 선택 화면
             </a>
             <p>
               기억은 흐려져도,

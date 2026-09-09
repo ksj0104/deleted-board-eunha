@@ -4,6 +4,7 @@ import "./globals.css";
 import "./community.css";
 import "./investigation.css";
 import "./curtain/curtain.css";
+import "./collection.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const h = await headers();
@@ -11,9 +12,9 @@ export async function generateMetadata(): Promise<Metadata> {
   const origin = `${host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https"}://${host}`;
   const image = new URL("/og.png", origin).toString();
   return {
-    title: "삭제된 게시판 — 은하아파트 기록",
+    title: "추리 게임 모음 · 삭제된 게시판 / 마지막 커튼콜",
     description:
-      "연락이 끊긴 이웃과 지워진 기록을 추적한다. 주민 게시판과 받은 자료 속 212개 기록을 검색하고 연결해 8개의 사건을 해결하는 웹 추리 게임.",
+      "삭제된 게시판과 마지막 커튼콜, 두 가지 추리 게임을 선택하세요. 게시판의 기록을 연결하거나 무대의 장면을 재현하며 사건을 해결합니다.",
     robots: { index: false, follow: false },
     openGraph: {
       title: "삭제된 게시판",

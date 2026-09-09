@@ -6,6 +6,7 @@ import "../app/globals.css";
 import "../app/community.css";
 import "../app/investigation.css";
 import "../app/curtain/curtain.css";
+import "../app/collection.css";
 
 const client = createLocalGameClient();
 createRoot(document.getElementById("root")!).render(

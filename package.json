@@ -13,7 +13,7 @@
     "build:pages": "vite build --config vite.pages.config.ts",
     "preview:pages": "vite preview --config vite.pages.config.ts",
     "test:pages": "tsx tests/pages-build.ts",
-    "test": "tsx --test tests/game.test.ts tests/ui.test.tsx tests/evidence-picker.test.tsx tests/record-search.test.ts tests/community-expansion.test.ts tests/dialog.test.tsx tests/local-game-client.test.ts tests/sound.test.ts tests/restoration.test.ts tests/calibration.test.ts tests/fieldwork.test.ts tests/record-requests.test.ts tests/curtain.test.ts tests/curtain-ui.test.tsx",
+    "test": "tsx --test tests/game.test.ts tests/ui.test.tsx tests/evidence-picker.test.tsx tests/record-search.test.ts tests/community-expansion.test.ts tests/dialog.test.tsx tests/local-game-client.test.ts tests/sound.test.ts tests/restoration.test.ts tests/calibration.test.ts tests/fieldwork.test.ts tests/record-requests.test.ts tests/curtain.test.ts tests/curtain-ui.test.tsx tests/collection.test.tsx",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
     "test:http": "tsx tests/http-campaign.ts",

@@ -125,6 +125,11 @@ export default function StoryPrologue({
           >
             {first ? "첫 번째 기록 열기 →" : "조사 이어가기 →"}
           </button>
+          {first && !pending && (
+            <a className="story-library-link" href="#">
+              다른 게임 선택
+            </a>
+          )}
         </div>
       </div>
     </Dialog>

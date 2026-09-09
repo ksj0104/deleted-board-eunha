@@ -174,6 +174,19 @@ try {
   const first = boot();
   try {
     await ready(
+      () => !!first.window.document.querySelector(".game-library"),
+      "the public root opens the game selection screen",
+    );
+    assert.equal(
+      first.window.document.querySelectorAll(".library-card").length,
+      2,
+    );
+    assert.equal(first.window.localStorage.getItem(LOCAL_SAVE_KEY), null);
+    assert.equal(first.window.localStorage.getItem(CURTAIN_SAVE_KEY), null);
+    first.window.document
+      .querySelector<HTMLAnchorElement>('.library-card[href="#deleted-board"]')!
+      .click();
+    await ready(
       () => !!first.window.document.querySelector(".story-prologue"),
       "production bundle opens the prologue",
     );
@@ -191,7 +204,7 @@ try {
     );
     const save = first.window.localStorage.getItem(LOCAL_SAVE_KEY)!;
     assert.equal(JSON.parse(save).started, true);
-    const reopened = boot(save);
+    const reopened = boot(save, undefined, "#deleted-board");
     try {
       await ready(
         () => !!reopened.window.document.querySelector(".community-board"),
@@ -210,8 +223,15 @@ try {
   } finally {
     first.window.close();
   }
-  const curtain = boot(undefined, undefined, "#curtain-call");
+  const curtain = boot();
   try {
+    await ready(
+      () => !!curtain.window.document.querySelector(".game-library"),
+      "both games can be selected from the main screen",
+    );
+    curtain.window.document
+      .querySelector<HTMLAnchorElement>('.library-card[href="#curtain-call"]')!
+      .click();
     await ready(
       () => !!curtain.window.document.querySelector(".cc-intro"),
       "second game boots at its shared hash URL",
@@ -291,7 +311,7 @@ try {
     curtain.window.close();
   }
   console.log(
-    `PASS Pages: ${base} — HTML, CSS/JS, ${imagePaths.length - 1} game images, four WAV files, share image; both games boot and restore isolated saves, Curtain epilogues work; no API calls`,
+    `PASS Pages: ${base} — main selection, both game links and direct routes, HTML, CSS/JS, ${imagePaths.length - 1} game images, four WAV files, share image; isolated saves and epilogues restore; no API calls`,
   );
 } finally {
   if (server.listening)

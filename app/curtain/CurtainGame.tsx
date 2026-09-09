@@ -1863,8 +1863,29 @@ export default function CurtainGame() {
           </defs>
         </svg>
         <header className="cc-header">
-          <a className="cc-home-link" href="#">
-            ← 삭제된 게시판
+          <a
+            className="cc-home-link"
+            href="#"
+            onClick={(event) => {
+              if (
+                !saveError ||
+                loaded.blocked ||
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              )
+                return;
+              const error = saveCurtain(
+                () => window.localStorage,
+                current.current,
+              );
+              setSaveError(error);
+              if (error) event.preventDefault();
+            }}
+          >
+            ← 게임 선택 화면
           </a>
           <a className="cc-wordmark" href="#curtain-call">
             마지막 커튼콜 <span>HAEON THEATRE</span>

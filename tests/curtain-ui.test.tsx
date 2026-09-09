@@ -238,7 +238,8 @@ test("Collection: hash route opens the second game and the existing game keeps i
     window.location.hash = "";
     window.dispatchEvent(new dom.window.HashChangeEvent("hashchange"));
   });
-  await waitFor(() => assert.ok(document.querySelector(".story-prologue")));
+  await waitFor(() => assert.ok(document.querySelector(".game-library")));
   assert.equal(window.localStorage.getItem(CURTAIN_SAVE_KEY), previous);
-  assert.ok(screen.getByRole("link", { name: /두 번째 게임 · 마지막 커튼콜/ }));
+  assert.ok(screen.getByRole("link", { name: "삭제된 게시판" }));
+  assert.ok(screen.getByRole("link", { name: "마지막 커튼콜" }));
 });
