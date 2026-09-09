@@ -8,6 +8,8 @@ import { inspectionCaptures } from "../lib/calibration";
 import { episodes } from "../lib/cases";
 import { LOCAL_SAVE_KEY } from "../lib/local-game-client";
 import { documentScans } from "../lib/document-scans";
+import { CURTAIN_SAVE_KEY } from "../lib/curtain-game";
+import { curtainThrough } from "./curtain-walkthrough";
 
 const root = resolve("dist-pages");
 const prefix = "/deleted-board-eunha/";
@@ -17,6 +19,7 @@ const mime: Record<string, string> = {
   ".css": "text/css",
   ".webp": "image/webp",
   ".png": "image/png",
+  ".wav": "audio/wav",
 };
 const server = createServer(async (request, response) => {
   try {
@@ -116,6 +119,9 @@ try {
       ),
     ),
     "og.png",
+    "curtain/stage.png",
+    "curtain/backstage.png",
+    "curtain/props.png",
   ];
   for (const path of imagePaths) {
     const imageResponse: Response = await fetch(new URL(path, pageUrl));
@@ -126,17 +132,24 @@ try {
     );
     assert.ok((await imageResponse.arrayBuffer()).byteLength > 10000, path);
   }
+  for (const name of ["a", "b", "c", "recording"]) {
+    const resource = await fetch(new URL(`curtain/${name}.wav`, pageUrl));
+    assert.equal(resource.status, 200);
+    const bytes = new Uint8Array(await resource.arrayBuffer());
+    assert.equal(new TextDecoder().decode(bytes.slice(0, 4)), "RIFF");
+    assert.ok(bytes.length > 90000);
+  }
   const source = await (await fetch(scripts[0].src)).text();
   parsed.window.close();
   let apiCalls = 0;
   const runtimeErrors: string[] = [];
-  const boot = (save?: string) => {
+  const boot = (save?: string, curtainSave?: string, hash = "") => {
     const virtualConsole = new VirtualConsole();
     virtualConsole.on("jsdomError", (error) =>
       runtimeErrors.push(error.message),
     );
     const dom = new JSDOM(html, {
-      url: base,
+      url: new URL(hash, base).href,
       runScripts: "outside-only",
       pretendToBeVisual: true,
       virtualConsole,
@@ -153,6 +166,8 @@ try {
       this.removeAttribute("open");
     };
     if (save) dom.window.localStorage.setItem(LOCAL_SAVE_KEY, save);
+    if (curtainSave)
+      dom.window.localStorage.setItem(CURTAIN_SAVE_KEY, curtainSave);
     dom.window.eval(source);
     return dom;
   };
@@ -195,8 +210,88 @@ try {
   } finally {
     first.window.close();
   }
+  const curtain = boot(undefined, undefined, "#curtain-call");
+  try {
+    await ready(
+      () => !!curtain.window.document.querySelector(".cc-intro"),
+      "second game boots at its shared hash URL",
+    );
+    assert.equal(
+      curtain.window.document.querySelector<HTMLImageElement>(".cc-intro > img")
+        ?.src,
+      new URL("curtain/stage.png", base).href,
+    );
+    for (const label of [
+      "카메라 켜기",
+      "마지막 장면 확인하기",
+      "내가 찍은 장면 조사하기",
+    ]) {
+      const button = [
+        ...curtain.window.document.querySelectorAll("button"),
+      ].find((b) => b.textContent?.includes(label));
+      assert.ok(button, label);
+      button.click();
+      await ready(
+        () =>
+          !curtain.window.document.querySelector(".cc-intro") ||
+          ![...curtain.window.document.querySelectorAll("button")].some((b) =>
+            b.textContent?.includes(label),
+          ),
+        label,
+      );
+    }
+    const save = curtain.window.localStorage.getItem(CURTAIN_SAVE_KEY)!;
+    assert.equal(JSON.parse(save).started, true);
+    assert.equal(curtain.window.localStorage.getItem(LOCAL_SAVE_KEY), null);
+    const reopened = boot(undefined, save, "#curtain-call");
+    try {
+      await ready(
+        () => !!reopened.window.document.querySelector(".cc-viewfinder"),
+        "second game restores the first investigation",
+      );
+      assert.equal(
+        reopened.window.localStorage.getItem(CURTAIN_SAVE_KEY),
+        save,
+      );
+    } finally {
+      reopened.window.close();
+    }
+    const solved = { ...curtainThrough(5), ending: "voices" };
+    const end = boot(
+      "preserved board save",
+      JSON.stringify(solved),
+      "#curtain-call",
+    );
+    try {
+      await ready(
+        () => !!end.window.document.querySelector(".cc-ending"),
+        "production restores a finished second game",
+      );
+      const other = [...end.window.document.querySelectorAll("button")].find(
+        (b) => b.textContent?.includes("다른 작별 보기"),
+      );
+      assert.ok(other);
+      other.click();
+      await ready(
+        () =>
+          end.window.document.querySelector(".cc-ending h1")?.textContent ===
+          "무대의 이름들",
+        "both epilogues work in the production bundle",
+      );
+      assert.equal(
+        end.window.localStorage.getItem(LOCAL_SAVE_KEY),
+        "preserved board save",
+      );
+      assert.equal(apiCalls, 0);
+      assert.deepEqual(runtimeErrors, []);
+    } finally {
+      end.window.close();
+    }
+  } finally {
+    curtain.window.close();
+  }
   console.log(
-    `PASS Pages: ${base} — HTML, CSS/JS, ${imagePaths.length - 1} game images including documents and cropped scraps, share image, production bundle start and browser save restoration; no API calls`,
+    `PASS Pages: ${base} — HTML, CSS/JS, ${imagePaths.length - 1} game images, four WAV files, share image; both games boot and restore isolated saves, Curtain epilogues work; no API calls`,
   );
 } finally {
   if (server.listening)

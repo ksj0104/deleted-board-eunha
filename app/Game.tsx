@@ -632,6 +632,9 @@ function GameScreen({
               가<span className="small-a">가</span>{" "}
               {fontLarge ? "기본 글자 크기" : "큰 글자 모드"}
             </button>
+            <a className="curtain-entry" href="#curtain-call">
+              두 번째 게임 · 마지막 커튼콜 ↗
+            </a>
             <p>
               기억은 흐려져도,
               <br />

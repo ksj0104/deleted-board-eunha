@@ -4,7 +4,13 @@ import { DEFAULT_SOUND_SETTINGS } from "../lib/sound";
 import { useSound } from "./sound-context";
 import { Dialog } from "./components";
 
-export default function SoundControls() {
+export default function SoundControls({
+  title = "책상 위의 소리",
+  description = "종이를 넘기고 증거를 모으는 작은 소리로 조사를 이어갑니다.",
+}: {
+  title?: string;
+  description?: string;
+}) {
   const sound = useSound()!;
   const settings = useSyncExternalStore(
     sound.subscribe,
@@ -48,10 +54,8 @@ export default function SoundControls() {
       </div>
       {open && (
         <Dialog label="효과음 설정" onClose={() => setOpen(false)}>
-          <h2 className="modal-title">책상 위의 소리</h2>
-          <p className="sound-description">
-            종이를 넘기고 증거를 모으는 작은 소리로 조사를 이어갑니다.
-          </p>
+          <h2 className="modal-title">{title}</h2>
+          <p className="sound-description">{description}</p>
           <div className="sound-settings" data-sound="silent">
             <label className="sound-enable">
               <input

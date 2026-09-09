@@ -1,4 +1,4 @@
-import Game from "./Game";
+import GameCollection from "./GameCollection";
 export default function Home() {
-  return <Game />;
+  return <GameCollection />;
 }
