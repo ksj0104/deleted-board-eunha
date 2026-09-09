@@ -336,14 +336,139 @@ test("UI: financial records show scanned invoice, supplier letter and bank confi
     within(bankDialog).getByRole("button", { name: /직접 조사 열기/ }),
   );
   const desk = screen.getByRole("dialog", { name: "지급 전표 대조대" });
-  await user.click(
-    within(desk).getByRole("button", { name: /3-3.*공동관리비/ }),
-  );
+  const bankComparison = within(desk).getByRole("region", {
+    name: "실제로 나간 두 이체",
+  });
+  await user.click(within(bankComparison).getByText("공문 이미지 펼쳐 보기"));
   assert.equal(
-    within(desk).getByRole("img").getAttribute("src"),
+    within(bankComparison).getByRole("img").getAttribute("src"),
     documentScans["3-3"][0].src,
   );
   dom.window.localStorage.removeItem(LOCAL_SAVE_KEY);
+});
+
+test("UI: payment comparison keeps sources beside single-select entries, preserves saves and still rejects mismatched transfers", async () => {
+  let raw = JSON.stringify({
+    ...freshProgress(),
+    started: true,
+    active: 3,
+    solved: [1, 2],
+    introduced: [1, 2, 3],
+    read: ["3-1", "3-2", "3-3"],
+    investigations: {
+      payments: {
+        placements: { "paid-other": "ledger-total" },
+        inspected: ["ledger-total"],
+        confirmed: false,
+      },
+    },
+  });
+  let fail = false;
+  const storage = {
+    getItem: () => raw,
+    setItem: (_key: string, value: string) => {
+      if (fail) throw new Error("quota");
+      raw = value;
+    },
+  };
+  const client = createLocalGameClient(() => storage);
+  const user = userEvent.setup({ document: dom.window.document });
+  const root = render(<Game client={client} />);
+  const openBench = async () => {
+    await user.click(await screen.findByRole("button", { name: "추리 노트" }));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "추리 노트" })).getByRole(
+        "button",
+        { name: "직접 조사 열기 ↗" },
+      ),
+    );
+    return screen.getByRole("dialog", { name: "지급 전표 대조대" });
+  };
+  let bench = await openBench();
+  const field = (name: string) =>
+    within(bench).getByRole("combobox", { name }) as HTMLElement & {
+      value: string;
+      disabled: boolean;
+    };
+  assert.equal(bench.querySelector(".investigation-source-tabs"), null);
+  assert.equal(within(bench).getAllByRole("combobox").length, 6);
+  assert.equal(
+    field("별도로 실행된 이체").value,
+    "ledger-total",
+    "old arbitrary placements remain visible and editable",
+  );
+  assert.ok(
+    !within(bench).queryByRole("option", { name: /다온기획/ }),
+    "unread register is not disclosed",
+  );
+  fail = true;
+  await user.selectOptions(field("공개 결산 합계"), "ledger-total");
+  await user.selectOptions(field("최종 공사비"), "invoice-total");
+  assert.equal(
+    field("별도로 실행된 이체").value,
+    "",
+    "one clue cannot occupy two entries",
+  );
+  assert.match(
+    within(bench).getByLabelText("선택한 금액의 차액").textContent!,
+    /3,000,000원/,
+  );
+  await within(bench).findByRole("button", { name: "조사 저장 재시도" });
+  await user.click(within(bench).getByRole("button", { name: "닫기" }));
+  await user.click(
+    within(screen.getByRole("dialog", { name: "추리 노트" })).getByRole(
+      "button",
+      { name: "직접 조사 열기 ↗" },
+    ),
+  );
+  bench = screen.getByRole("dialog", { name: "지급 전표 대조대" });
+  assert.equal(field("최종 공사비").value, "invoice-total");
+  fail = false;
+  await user.click(
+    within(bench).getByRole("button", { name: "조사 저장 재시도" }),
+  );
+  await waitFor(() =>
+    assert.equal(
+      JSON.parse(raw).investigations.payments.placements.invoice,
+      "invoice-total",
+    ),
+  );
+  const register = within(bench).getByRole("article", {
+    name: "입주행사 협력업체 등록부",
+  });
+  await user.click(
+    within(register).getByRole("button", { name: "원문 열고 비교하기 ↗" }),
+  );
+  const original = screen.getByRole("dialog", {
+    name: "입주행사 협력업체 등록부",
+  });
+  await user.click(within(original).getByRole("button", { name: "닫기" }));
+  await user.selectOptions(field("공사비에 대응하는 이체"), "transfer-b");
+  await user.selectOptions(field("별도로 실행된 이체"), "transfer-a");
+  await user.selectOptions(field("별도 이체 계좌의 등록 카드"), "owner");
+  await user.selectOptions(field("그 지급을 승인한 서명"), "signature");
+  await user.click(
+    within(bench).getByRole("button", { name: "조사 결과 확인" }),
+  );
+  await within(bench).findByText(/연결되지 않거나 원문과 대응하지 않는 항목/);
+  assert.equal(JSON.parse(raw).investigations.payments.confirmed, false);
+  await user.selectOptions(field("공사비에 대응하는 이체"), "transfer-a");
+  await user.selectOptions(field("별도로 실행된 이체"), "transfer-b");
+  await user.selectOptions(field("그 지급을 승인한 서명"), "");
+  assert.equal(field("그 지급을 승인한 서명").value, "");
+  await user.selectOptions(field("그 지급을 승인한 서명"), "signature");
+  await user.click(
+    within(bench).getByRole("button", { name: "조사 결과 확인" }),
+  );
+  await within(bench).findByText("✓ 직접 조사 완료");
+  for (const id of ["3-1", "3-2", "3-3", "3-4"])
+    assert.ok(JSON.parse(raw).pinned.includes(id));
+  root.unmount();
+  render(<Game client={createLocalGameClient(() => storage)} />);
+  bench = await openBench();
+  assert.ok(within(bench).getByText("✓ 직접 조사 완료"));
+  assert.equal(field("별도로 실행된 이체").value, "transfer-b");
+  assert.equal(field("별도로 실행된 이체").disabled, true);
 });
 
 test("UI: shredded paper supports keyboard, drag, save retry, reopening, reconstruction and collection", async () => {
@@ -738,6 +863,15 @@ async function investigateCase(
   );
   const bench = screen.getByRole("dialog", { name: desk.title });
   for (const [slot, id] of Object.entries(path.placements)) {
+    if (desk.id === "payments") {
+      await user.selectOptions(
+        within(bench).getByRole("combobox", {
+          name: desk.slots.find((item) => item.id === slot)!.label,
+        }),
+        id,
+      );
+      continue;
+    }
     const clue = desk.clues.find((c) => c.id === id)!;
     const tab = [
       ...bench.querySelectorAll<HTMLButtonElement>(
