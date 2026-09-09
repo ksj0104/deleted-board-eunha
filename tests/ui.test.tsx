@@ -471,6 +471,236 @@ test("UI: payment comparison keeps sources beside single-select entries, preserv
   assert.equal(field("별도로 실행된 이체").disabled, true);
 });
 
+test("UI: route guidance pairs records with the map, gates sources and records only a power-off door experiment", async () => {
+  let raw = JSON.stringify({
+    ...freshProgress(),
+    started: true,
+    active: 4,
+    requested: ["4-3", "4-4", "4-5"],
+    solved: [1, 2, 3],
+    introduced: [1, 2, 3, 4],
+    read: ["4-1", "4-3"],
+  });
+  let fail = false;
+  const storage = {
+    getItem: () => raw,
+    setItem: (_key: string, value: string) => {
+      if (fail) throw new Error("quota");
+      raw = value;
+    },
+  };
+  const client = createLocalGameClient(() => storage);
+  const user = userEvent.setup({ document: dom.window.document });
+  const root = render(<Game client={client} />);
+  const open = async () => {
+    await user.click(await screen.findByRole("button", { name: "추리 노트" }));
+    await user.click(
+      within(screen.getByRole("dialog", { name: "추리 노트" })).getByRole(
+        "button",
+        { name: "직접 조사 열기 ↗" },
+      ),
+    );
+    return screen.getByRole("dialog", { name: "방문증 동선 지도" });
+  };
+  let bench = await open();
+  const row = (label: string) =>
+    within(bench).getByRole("combobox", {
+      name: `${label}의 장소`,
+    }) as HTMLElement & { value: string };
+  assert.equal(bench.querySelector(".investigation-source-tabs"), null);
+  assert.equal(within(bench).getAllByRole("combobox").length, 4);
+  assert.equal(
+    within(bench).queryByRole("button", { name: "지도에 폐쇄 구간 표시" }),
+    null,
+  );
+  assert.ok(
+    within(bench)
+      .getByRole("button", { name: "내부 손잡이 누르기" })
+      .hasAttribute("disabled"),
+  );
+  fail = true;
+  await user.selectOptions(row("20:20 통과 도장"), "courtyard");
+  await within(bench).findByRole("button", { name: "조사 저장 재시도" });
+  await user.click(within(bench).getByRole("button", { name: "닫기" }));
+  await user.click(
+    within(screen.getByRole("dialog", { name: "추리 노트" })).getByRole(
+      "button",
+      { name: "직접 조사 열기 ↗" },
+    ),
+  );
+  bench = screen.getByRole("dialog", { name: "방문증 동선 지도" });
+  assert.equal(row("20:20 통과 도장").value, "courtyard");
+  fail = false;
+  await user.click(
+    within(bench).getByRole("button", { name: "조사 저장 재시도" }),
+  );
+  await waitFor(() =>
+    assert.equal(
+      JSON.parse(raw).investigations.route.placements.courtyard,
+      "r01",
+    ),
+  );
+  await user.selectOptions(row("20:21 통과 도장"), "management");
+  await user.selectOptions(row("20:23 통과 도장"), "tunnel");
+  await user.selectOptions(row("20:26 통과 도장"), "archive");
+  const routeText = within(bench).getByRole("list", {
+    name: "내가 연결한 시간순 동선",
+  });
+  assert.match(routeText.textContent!, /20:20동문 안뜰.*20:21관리동/);
+  for (const id of ["4-2", "4-4"]) {
+    const title = recordById(id)!.title;
+    await user.click(
+      within(bench).getByRole("button", { name: `자료 열기 · ${title} ↗` }),
+    );
+    await user.click(
+      within(screen.getByRole("dialog", { name: title })).getByRole("button", {
+        name: "닫기",
+      }),
+    );
+  }
+  await user.click(
+    within(bench).getByRole("button", { name: "지도에 폐쇄 구간 표시" }),
+  );
+  assert.ok(bench.querySelector(".closed-path"));
+  await user.click(
+    within(bench).getByRole("button", { name: "점검판으로 시험 준비" }),
+  );
+  await user.click(
+    within(bench).getByRole("button", { name: "내부 손잡이 누르기" }),
+  );
+  assert.ok(within(bench).getByText(/정상 전원에서 문이 열렸습니다/));
+  assert.ok(
+    !JSON.parse(raw).investigations.route.inspected.includes("door-tested"),
+  );
+  await user.click(
+    within(bench).getByRole("button", { name: "조사 결과 확인" }),
+  );
+  await within(bench).findByText(/연결되지 않거나 원문과 대응하지 않는 항목/);
+  await user.click(within(bench).getByRole("button", { name: "정전 재현" }));
+  await user.click(
+    within(bench).getByRole("button", { name: "내부 손잡이 누르기" }),
+  );
+  await waitFor(() =>
+    assert.ok(
+      JSON.parse(raw).investigations.route.inspected.includes("door-tested"),
+    ),
+  );
+  await user.click(
+    within(bench).getByRole("button", { name: "조사 결과 확인" }),
+  );
+  await within(bench).findByText(/연결되지 않거나 원문과 대응하지 않는 항목/);
+  assert.equal(
+    JSON.parse(raw).investigations.route.confirmed,
+    false,
+    "wrong place assignments still fail after the door test",
+  );
+  await user.selectOptions(row("20:20 통과 도장"), "management");
+  assert.equal(row("20:21 통과 도장").value, "");
+  await user.selectOptions(row("20:21 통과 도장"), "courtyard");
+  await user.click(
+    within(bench).getByRole("button", { name: "조사 결과 확인" }),
+  );
+  await within(bench).findByText("✓ 직접 조사 완료");
+  root.unmount();
+  render(<Game client={createLocalGameClient(() => storage)} />);
+  bench = await open();
+  assert.ok(within(bench).getByText("✓ 직접 조사 완료"));
+  assert.equal(row("20:20 통과 도장").value, "management");
+  await user.click(
+    within(bench).getByRole("button", { name: "다시 조사해 보기" }),
+  );
+  assert.equal(row("20:20 통과 도장").value, "");
+  assert.equal(
+    within(bench).queryByText(/정전 개방 시험 관찰 기록 있음/),
+    null,
+  );
+  assert.equal(
+    JSON.parse(raw).investigations.route.confirmed,
+    true,
+    "practice preserves completion",
+  );
+});
+
+test("UI: unrequested originals stay out of inbox search and workbench previews until a grounded request succeeds", async () => {
+  let raw = JSON.stringify({
+    ...freshProgress(),
+    started: true,
+    active: 4,
+    solved: [1, 2, 3],
+    introduced: [1, 2, 3, 4],
+  });
+  const client = createLocalGameClient(() => ({
+    getItem: () => raw,
+    setItem: (_key, value) => {
+      raw = value;
+    },
+  }));
+  const user = userEvent.setup({ document: dom.window.document });
+  render(<Game client={client} />);
+  await user.click(await screen.findByRole("button", { name: "받은 자료함" }));
+  const inbox = screen.getByRole("region", { name: "받은 자료함" });
+  assert.ok(within(inbox).getByText("첨부된 기록 0개"));
+  fireEvent.change(within(inbox).getByRole("searchbox"), {
+    target: { value: "R09" },
+  });
+  assert.ok(within(inbox).getByText("일치하는 받은 자료가 없습니다."));
+  fireEvent.change(within(inbox).getByRole("searchbox"), {
+    target: { value: "" },
+  });
+  await user.click(screen.getByRole("button", { name: "추리 노트" }));
+  await user.click(
+    within(screen.getByRole("dialog", { name: "추리 노트" })).getByRole(
+      "button",
+      { name: "직접 조사 열기 ↗" },
+    ),
+  );
+  const bench = screen.getByRole("dialog", { name: "방문증 동선 지도" });
+  await user.click(
+    within(bench).getByRole("button", { name: "방문증 배정·이동 원본 조회 ↗" }),
+  );
+  let request = screen.getByRole("dialog", { name: "원본 조회 요청" });
+  assert.equal(
+    screen.queryByRole("dialog", { name: "방문증 배정·이동 기록" }),
+    null,
+  );
+  await user.type(within(request).getByRole("textbox"), "V03");
+  await user.click(
+    within(request).getByRole("button", { name: "원본 조회 요청" }),
+  );
+  await within(request).findByText(/관련 원문과 입력한 정보를 다시 비교/);
+  assert.deepEqual(JSON.parse(raw).requested, []);
+  for (const label of ["원본 조회 요청", "방문증 동선 지도", "추리 노트"])
+    await user.click(
+      within(screen.getByRole("dialog", { name: label })).getByRole("button", {
+        name: "닫기",
+      }),
+    );
+  for (const id of ["2-3", "4-2"]) {
+    await openSourceRecord(user, recordById(id)!);
+    await user.click(
+      within(
+        screen.getByRole("dialog", { name: recordById(id)!.title }),
+      ).getByRole("button", { name: "닫기" }),
+    );
+  }
+  await user.click(screen.getByRole("button", { name: "받은 자료함" }));
+  fireEvent.change(screen.getByRole("searchbox", { name: "받은 자료 검색" }), {
+    target: { value: "" },
+  });
+  await user.click(
+    screen.getByRole("button", { name: "방문증 배정·이동 원본 조회 ↗" }),
+  );
+  request = screen.getByRole("dialog", { name: "원본 조회 요청" });
+  await user.type(within(request).getByRole("textbox"), "V03");
+  await user.click(
+    within(request).getByRole("button", { name: "원본 조회 요청" }),
+  );
+  await screen.findByRole("dialog", { name: "방문증 배정·이동 기록" });
+  await waitFor(() => assert.ok(JSON.parse(raw).read.includes("4-3")));
+  assert.deepEqual(JSON.parse(raw).requested, ["4-3"]);
+  assert.ok(!JSON.parse(raw).read.includes("4-4"));
+});
+
 test("UI: shredded paper supports keyboard, drag, save retry, reopening, reconstruction and collection", async () => {
   const progress = {
     ...freshProgress(),
@@ -823,9 +1053,32 @@ async function openSourceRecord(
       screen.getByRole("searchbox", { name: "받은 자료 검색" }),
       { target: { value: record.title } },
     );
-    await user.click(
-      screen.getByRole("button", { name: `${record.title} 열기` }),
-    );
+    const attached = screen.queryByRole("button", {
+      name: `${record.title} 열기`,
+    });
+    if (attached) await user.click(attached);
+    else {
+      const requests: Record<string, [string, string, string]> = {
+        "4-3": ["방문증 배정·이동 원본", "조회할 방문증 번호", "V03"],
+        "4-4": ["시설 잠금장치 점검표", "점검할 장소의 리더 번호", "R09"],
+        "4-5": ["개인 약속의 후속 쪽지", "원래 약속을 보낸 닉네임", "우편함"],
+      };
+      const [title, label, answer] = requests[record.id];
+      fireEvent.change(
+        screen.getByRole("searchbox", { name: "받은 자료 검색" }),
+        { target: { value: "" } },
+      );
+      await user.click(screen.getByRole("button", { name: `${title} 조회 ↗` }));
+      const request = screen.getByRole("dialog", { name: "원본 조회 요청" });
+      await user.type(
+        within(request).getByRole("textbox", { name: label }),
+        answer,
+      );
+      await user.click(
+        within(request).getByRole("button", { name: "원본 조회 요청" }),
+      );
+      await screen.findByRole("dialog", { name: record.title });
+    }
   }
 }
 
@@ -873,6 +1126,21 @@ async function investigateCase(
       continue;
     }
     const clue = desk.clues.find((c) => c.id === id)!;
+    if (desk.id === "route") {
+      if (["r01", "r02", "r07", "r09"].includes(id))
+        await user.selectOptions(
+          within(bench).getByRole("combobox", { name: `${clue.label}의 장소` }),
+          slot,
+        );
+      else
+        await user.click(
+          within(bench).getByRole("button", {
+            name:
+              id === "works" ? "지도에 폐쇄 구간 표시" : "점검판으로 시험 준비",
+          }),
+        );
+      continue;
+    }
     const tab = [
       ...bench.querySelectorAll<HTMLButtonElement>(
         ".investigation-source-tabs button",
@@ -880,30 +1148,14 @@ async function investigateCase(
     ].find((button) => button.textContent!.includes(`· ${clue.source}`))!;
     await user.click(tab);
     await user.click(within(bench).getByRole("button", { name: clue.label }));
-    if (
-      desk.id === "route" &&
-      ["management", "courtyard", "tunnel", "archive"].includes(slot)
-    ) {
-      const label = {
-        management: "관리동",
-        courtyard: "동문 안뜰",
-        tunnel: "지하 연결통로",
-        archive: "구 세탁실",
-      }[slot];
-      await user.click(
-        within(bench).getByRole("button", { name: `${label}에 기록 놓기` }),
-      );
-    } else
-      await user.click(
-        within(bench).getByRole("button", {
-          name: `${desk.slots.find((s) => s.id === slot)!.label}에 놓기`,
-        }),
-      );
+    await user.click(
+      within(bench).getByRole("button", {
+        name: `${desk.slots.find((s) => s.id === slot)!.label}에 놓기`,
+      }),
+    );
   }
   if (desk.id === "route") {
-    await user.click(
-      within(bench).getByRole("checkbox", { name: "전원 공급" }),
-    );
+    await user.click(within(bench).getByRole("button", { name: "정전 재현" }));
     await user.click(
       within(bench).getByRole("button", { name: "내부 손잡이 누르기" }),
     );

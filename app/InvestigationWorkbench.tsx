@@ -13,30 +13,9 @@ import {
 import RecordArtifact from "./RecordArtifact";
 import DocumentScanViewer from "./DocumentScanViewer";
 import PaymentComparison from "./PaymentComparison";
+import RouteInvestigation from "./RouteInvestigation";
 import { documentScans } from "../lib/document-scans";
 import { useSound } from "./sound-context";
-
-const mapNodes = [
-  { id: "management", label: "관리동", reader: "R01", x: 16, y: 22 },
-  { id: "square", label: "중앙광장", reader: "통과 리더 없음", x: 16, y: 77 },
-  { id: "courtyard", label: "동문 안뜰", reader: "R02", x: 49, y: 22 },
-  { id: "street", label: "외부 보도", reader: "바깥 철문", x: 83, y: 22 },
-  { id: "tunnel", label: "지하 연결통로", reader: "R07", x: 49, y: 77 },
-  {
-    id: "archive",
-    label: "구 세탁실",
-    reader: "R09 · 현재 주민 기록실",
-    x: 83,
-    y: 77,
-  },
-];
-const mapEdges = [
-  ["management", "square"],
-  ["management", "courtyard"],
-  ["courtyard", "street"],
-  ["courtyard", "tunnel"],
-  ["tunnel", "archive"],
-];
 
 export default function InvestigationWorkbench({
   desk,
@@ -68,8 +47,6 @@ export default function InvestigationWorkbench({
   const [checking, setChecking] = useState(false);
   const [message, setMessage] = useState("");
   const [practice, setPractice] = useState(false);
-  const [power, setPower] = useState(true);
-  const [doorOpen, setDoorOpen] = useState(false);
   const [wipe, setWipe] = useState(50);
   const sound = useSound();
   const complete = saved.confirmed && !practice;
@@ -133,7 +110,7 @@ export default function InvestigationWorkbench({
     update({ ...latest.current, placements });
     sound?.play("deselect");
   };
-  const choosePayment = (slot: string, id: string) => {
+  const chooseClue = (slot: string, id: string) => {
     if (complete || checking || !desk.slots.some((item) => item.id === slot))
       return;
     if (!id) return remove(slot);
@@ -234,14 +211,15 @@ export default function InvestigationWorkbench({
       </div>
     );
   };
-  const testDoor = () => {
-    setDoorOpen(true);
-    sound?.play("open");
+  const observeDoor = () => {
     if (
-      !power &&
-      state.placements.door === "exit" &&
-      !state.inspected.includes("door-tested")
+      complete ||
+      checking ||
+      !progress.read.includes("4-4") ||
+      latest.current.placements.door !== "exit"
     )
+      return;
+    if (!latest.current.inspected.includes("door-tested"))
       update({
         ...latest.current,
         inspected: [...latest.current.inspected, "door-tested"],
@@ -260,7 +238,7 @@ export default function InvestigationWorkbench({
         <h2 className="modal-title">{desk.title}</h2>
         <p>{desk.instruction}</p>
       </header>
-      {desk.id !== "payments" && (
+      {desk.id !== "payments" && desk.id !== "route" && (
         <div className="investigation-source-tabs" aria-label="조사 원문 목록">
           {desk.sources.map((id) => (
             <button
@@ -300,8 +278,6 @@ export default function InvestigationWorkbench({
               latest.current = next;
               setState(next);
               setChosen(null);
-              setDoorOpen(false);
-              setPower(true);
               setMessage("");
             }}
           >
@@ -315,8 +291,19 @@ export default function InvestigationWorkbench({
           state={state}
           progress={progress}
           disabled={complete || checking}
-          onChoose={choosePayment}
+          onChoose={chooseClue}
           onRead={onRead}
+        />
+      ) : desk.id === "route" ? (
+        <RouteInvestigation
+          key={String(practice)}
+          desk={desk}
+          state={state}
+          progress={progress}
+          disabled={complete || checking}
+          onChoose={chooseClue}
+          onRead={onRead}
+          onObserve={observeDoor}
         />
       ) : (
         <div className="workbench-columns">
@@ -425,132 +412,6 @@ export default function InvestigationWorkbench({
                   </section>
                 ))}
               </div>
-            )}
-            {desk.id === "route" && (
-              <>
-                {progress.read.includes("4-1") ? (
-                  <div className="route-map" aria-label="관리동 보행 지도">
-                    {mapEdges.map(([from, to]) => {
-                      const a = mapNodes.find((n) => n.id === from)!;
-                      const b = mapNodes.find((n) => n.id === to)!;
-                      return (
-                        <div
-                          key={from + to}
-                          className={`map-path ${to === "street" && placed("closure") ? "closed-path" : ""}`}
-                          style={{
-                            left: `${a.x}%`,
-                            top: `${a.y}%`,
-                            width: `${b.x - a.x || 0.4}%`,
-                            height: `${b.y - a.y || 0.6}%`,
-                          }}
-                        />
-                      );
-                    })}
-                    {mapNodes.map((node) => (
-                      <div
-                        className={`map-node ${placed(node.id) ? "has-stamp" : ""}`}
-                        key={node.id}
-                        style={{ left: `${node.x}%`, top: `${node.y}%` }}
-                        {...dropProps(node.id)}
-                      >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            desk.slots.some((s) => s.id === node.id)
-                              ? place(node.id)
-                              : setMessage(
-                                  "이 지점에는 대응하는 방문증 리더가 없습니다. 원본 연결도를 확인하세요.",
-                                )
-                          }
-                          disabled={complete || checking}
-                          aria-label={`${node.label}에 기록 놓기`}
-                        >
-                          <strong>{node.label}</strong>
-                          <small>{node.reader}</small>
-                          <span>
-                            {placed(node.id)?.value ?? "통과 기록 놓기"}
-                          </span>
-                        </button>
-                        {placed(node.id) && !complete && (
-                          <button
-                            type="button"
-                            className="map-remove"
-                            onClick={() => remove(node.id)}
-                            aria-label={`${node.label} 기록 해제`}
-                          >
-                            ×
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="unread-material">
-                    4-1 보행 연결도를 열면 지도를 펼칠 수 있습니다.
-                  </p>
-                )}
-                <p className="route-current">
-                  배치한 시각순 동선:{" "}
-                  {mapNodes
-                    .filter((n) => placed(n.id))
-                    .sort((a, b) =>
-                      (placed(a.id)?.value ?? "").localeCompare(
-                        placed(b.id)?.value ?? "",
-                      ),
-                    )
-                    .map((n) => n.label)
-                    .join(" → ") || "—"}
-                </p>
-                {slotView("closure")}
-                {slotView("door")}
-                <div className={`door-model ${doorOpen ? "door-is-open" : ""}`}>
-                  <div className="door-leaf">
-                    <span>
-                      R09
-                      <br />
-                      내부 비상문
-                    </span>
-                  </div>
-                  <div>
-                    <h3>시설 점검 모형</h3>
-                    <p>실제 점검판의 작동 조건을 재현합니다.</p>
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={power}
-                        disabled={complete || checking}
-                        onChange={(event) => {
-                          setPower(event.target.checked);
-                          setDoorOpen(false);
-                        }}
-                      />{" "}
-                      전원 공급
-                    </label>
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={
-                        complete ||
-                        checking ||
-                        !progress.read.includes("4-4") ||
-                        state.placements.door !== "exit"
-                      }
-                      onClick={testDoor}
-                    >
-                      내부 손잡이 누르기
-                    </button>
-                    <p aria-live="polite">
-                      {doorOpen
-                        ? "내부 비상문이 열렸습니다."
-                        : power
-                          ? "전원이 켜져 있습니다."
-                          : "정전 상태입니다."}
-                      {state.inspected.includes("door-tested") &&
-                        " · 정전 개방 시험 기록됨"}
-                    </p>
-                  </div>
-                </div>
-              </>
             )}
             {desk.id === "index" && (
               <>

@@ -1,5 +1,6 @@
 import { allRecords, episodes, type RecordFile } from "./cases";
 import type { Progress } from "./game";
+import { acquiredRecord } from "./record-requests";
 
 // Public posts follow the world's clock, not the currently selected deduction.
 // Private originals arrive through an identified source and stay in the inbox.
@@ -53,9 +54,8 @@ export const deliveries = [
     date: "03.22 18:00",
     from: "달빛세탁소 · 추가 회신",
     subject: "동문에서 끊긴 행적에 관해",
-    body: "요청해 둔 쪽지 보관함 내보내기가 처리됐습니다. 약속 초대 뒤 서윤 씨가 보낸 우회 계획이 남아 있어 함께 전달합니다. 위치를 공개하지 말라는 당부가 있으니 이 쪽지는 조사 회신함에서만 확인해 주세요. 보안업체의 방문증 배정·이동 회신과 시설 점검표도 도착했습니다. 주민마당의 연결도·공사 안내에 센서 위치를 맞춰 보면 어디로 갔는지 확인할 수 있을 겁니다.",
-    source:
-      "우편함의 쪽지 보관함 내보내기 · 보안업체 방문증 회신 · 시설 점검표",
+    body: "동문에서 끊긴 기록은 보안업체에 방문증 번호를 특정해 조회할 수 있습니다. 앞서 받은 출입 원본을 다시 살펴보고, 주민마당에서 그날의 공사 안내를 찾아 보세요. 이동 원본을 확보하면 마지막 장치를 기준으로 시설 점검표도 요청할 수 있습니다. 개인 약속의 후속 쪽지는 처음 약속을 보낸 상대의 보관함에서 찾아야 합니다. 조회해 확보한 자료는 이 회신에 차례로 보관됩니다.",
+    source: "우편함의 조회 안내 · 보안업체 기록실 · 시설 담당 보관함",
   },
   {
     episode: 5,
@@ -103,11 +103,13 @@ export function isPublicRecord(r: RecordFile) {
 export function canReadRecord(r: RecordFile, p: Progress) {
   return isPublicRecord(r)
     ? r.date <= worldDate(p)
-    : Number(r.id.split("-")[0]) <= worldStage(p);
+    : Number(r.id.split("-")[0]) <= worldStage(p) && acquiredRecord(p, r.id);
 }
 export function communityRecords(p: Progress) {
   return allRecords.filter((r) => isPublicRecord(r) && canReadRecord(r, p));
 }
-export function deliveryRecords(episode: number) {
-  return episodes[episode - 1].records.filter((r) => !isPublicRecord(r));
+export function deliveryRecords(episode: number, progress?: Progress) {
+  return episodes[episode - 1].records.filter(
+    (r) => !isPublicRecord(r) && (!progress || canReadRecord(r, progress)),
+  );
 }

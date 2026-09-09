@@ -123,10 +123,26 @@ export function investigationAction(episode: number) {
     },
   };
 }
+export function acquisitionActions(episode: number) {
+  return episode === 4
+    ? [
+        { type: "read", record: "2-3" },
+        { type: "read", record: "4-2" },
+        { type: "request-record", record: "4-3", text: "V03" },
+        { type: "read", record: "4-3" },
+        { type: "read", record: "4-1" },
+        { type: "request-record", record: "4-4", text: "R09" },
+        { type: "read", record: "1-4" },
+        { type: "read", record: "1-5" },
+        { type: "request-record", record: "4-5", text: "우편함" },
+      ]
+    : [];
+}
 export function investigationActions(episode: number) {
   const route = investigationWalkthrough[episode];
   return route
     ? [
+        ...acquisitionActions(episode),
         ...route.sources.map((record) => ({ type: "read", record, episode })),
         investigationAction(episode),
       ]

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { episodes } from "../lib/cases";
 import { walkthrough, restoredPaperOrder, cctvAlignment } from "./walkthrough";
-import { investigationActions } from "./walkthrough";
+import { investigationActions, acquisitionActions } from "./walkthrough";
 import { inspectionCaptures } from "../lib/calibration";
 import { communityImages } from "../lib/community";
 import { documentScans } from "../lib/document-scans";
@@ -61,6 +61,7 @@ for (const ep of episodes) {
   assert.ok((await request()).progress.introduced?.includes(ep.id));
   const incorrect = await request({ type: "solve" });
   assert.equal(incorrect.progress.solved.length, ep.id - 1);
+  for (const action of acquisitionActions(ep.id)) await request(action);
   for (const r of ep.records) {
     await request({ type: "read", record: r.id });
     if (r.shredded)

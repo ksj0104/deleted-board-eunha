@@ -9,6 +9,7 @@ import {
 } from "./restoration";
 import { solutions, resolutions, endings, type Solution } from "./solutions";
 import { canReadRecord } from "./world";
+import { migrateRequests, requestMatches } from "./record-requests";
 import { automaticEvidence } from "./automatic-evidence";
 import {
   investigationById,
@@ -41,6 +42,7 @@ export type Progress = {
   restorations?: Record<string, Restoration>;
   calibration?: Calibration;
   investigations?: Record<string, InvestigationState>;
+  requested?: string[];
   notes: Record<string, string>;
   drafts: Record<string, Record<string, Draft>>;
   hints: Record<string, number>;
@@ -76,6 +78,7 @@ export const freshProgress = (): Progress => ({
   restorations: {},
   calibration: { offset: 0, confirmed: false },
   investigations: {},
+  requested: [],
   notes: {},
   drafts: {},
   hints: {},
@@ -166,7 +169,9 @@ export function applyAction(
   current: Progress,
   action: Action,
 ): { progress: Progress; feedback?: Feedback } {
-  const p: Progress = structuredClone(migrateRestorations(current));
+  const p: Progress = structuredClone(
+    migrateRequests(migrateRestorations(current)),
+  );
   p.calibration ??= calibrationFor(current);
   p.restorations ??= Object.fromEntries(
     allRecords
@@ -185,7 +190,13 @@ export function applyAction(
   } else if (action.type === "intro")
     p.introduced = [...new Set([...(p.introduced ?? []), ep])];
   else if (action.type === "visit") p.active = ep;
-  else if (
+  else if (action.type === "request-record") {
+    if (!action.record || !requestMatches(p, action.record, action.text))
+      throw new Error(
+        "조회 대상을 확인하지 못했습니다. 관련 원문을 읽고 식별 정보를 다시 대조해 주세요.",
+      );
+    p.requested = [...new Set([...p.requested!, action.record])];
+  } else if (
     action.type === "investigate" ||
     action.type === "confirm-investigation"
   ) {
@@ -377,7 +388,7 @@ export function applyAction(
   return { progress: p };
 }
 export function gameView(progress: Progress) {
-  progress = migrateRestorations(progress);
+  progress = migrateRequests(migrateRestorations(progress));
   return {
     progress,
     resolutions: Object.fromEntries(

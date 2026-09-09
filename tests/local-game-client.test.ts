@@ -7,7 +7,7 @@ import {
   LOCAL_SAVE_KEY,
 } from "../lib/local-game-client";
 import { walkthrough, cctvAlignment } from "./walkthrough";
-import { investigationActions } from "./walkthrough";
+import { investigationActions, acquisitionActions } from "./walkthrough";
 
 function memoryStorage() {
   const values = new Map<string, string>();
@@ -30,6 +30,8 @@ test("browser saves: all eight episodes, drafts, evidence, notes and both ending
     await client.request({ type: "note", text: `${episode.id}화의 기억` });
     await client.request({ type: "hint" });
     const drafts = walkthrough[episode.id - 1];
+    for (const action of acquisitionActions(episode.id))
+      await client.request(action);
     const evidence = new Set(Object.values(drafts).flatMap(([, ids]) => ids));
     const saved = (await client.request()).progress;
     for (const record of evidence)

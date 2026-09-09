@@ -4,14 +4,17 @@ import type { Progress } from "../lib/game";
 import type { RecordFile } from "../lib/cases";
 import { deliveries, deliveryRecords, worldStage } from "../lib/world";
 import { readableParagraphs, recordRestored } from "../lib/restoration";
+import { acquiredRecord, recordRequests } from "../lib/record-requests";
 import { inspectionCaptures } from "../lib/calibration";
 
 export default function InvestigationInbox({
   progress,
   onOpen,
+  onRequest,
 }: {
   progress: Progress;
   onOpen: (record: RecordFile) => void;
+  onRequest: (record: string) => void;
 }) {
   const stage = worldStage(progress);
   const [selection, setSelection] = useState<{ id: number; stage: number }>();
@@ -27,7 +30,7 @@ export default function InvestigationInbox({
           d.from,
           d.subject,
           d.body,
-          ...deliveryRecords(d.episode).flatMap((r) => [
+          ...deliveryRecords(d.episode, progress).flatMap((r) => [
             r.title,
             ...readableParagraphs(r, progress),
             ...(r.surveillance?.frames.map((frame) => frame.alt) ?? []),
@@ -71,7 +74,7 @@ export default function InvestigationInbox({
         <div className="inbox-columns">
           <nav className="delivery-list" aria-label="받은 회신 목록">
             {received.map((delivery) => {
-              const unread = deliveryRecords(delivery.episode).filter(
+              const unread = deliveryRecords(delivery.episode, progress).filter(
                 (r) => !progress.read.includes(r.id),
               ).length;
               return (
@@ -110,9 +113,34 @@ export default function InvestigationInbox({
               </div>
             </dl>
             <p className="delivery-body">{selected.body}</p>
-            <h4>첨부된 기록 {deliveryRecords(selected.episode).length}개</h4>
+            <h4>
+              첨부된 기록 {deliveryRecords(selected.episode, progress).length}개
+            </h4>
+            {selected.episode === 4 && (
+              <section className="inbox-requests" aria-label="추가 원문 조회">
+                <h4>조회할 원문</h4>
+                <p>
+                  관련 기록을 찾아 조회 대상을 특정하세요. 확보하기 전에는 첨부
+                  내용이 검색되지 않습니다.
+                </p>
+                {recordRequests
+                  .filter(
+                    (request) => !acquiredRecord(progress, request.record),
+                  )
+                  .map((request) => (
+                    <button
+                      className="secondary"
+                      type="button"
+                      key={request.record}
+                      onClick={() => onRequest(request.record)}
+                    >
+                      {request.title} 조회 ↗
+                    </button>
+                  ))}
+              </section>
+            )}
             <div className="delivery-attachments">
-              {deliveryRecords(selected.episode).map((r) => (
+              {deliveryRecords(selected.episode, progress).map((r) => (
                 <button
                   key={r.id}
                   className="delivery-attachment"

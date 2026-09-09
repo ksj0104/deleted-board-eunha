@@ -2,6 +2,7 @@ import { episodes, recordById } from "./cases";
 import { applyAction, freshProgress, gameView, type Progress } from "./game";
 import type { GameClient } from "./game-client";
 import { validSavedRestoration } from "./restoration";
+import { requestFor } from "./record-requests";
 import { comparisonMatches, validOffset } from "./calibration";
 import {
   investigationById,
@@ -48,6 +49,10 @@ function isProgress(value: unknown): value is Progress {
     value.active <= Math.min(episodes.length, value.solved.length + 1) &&
     recordIds(value.read) &&
     recordIds(value.pinned) &&
+    (value.requested === undefined ||
+      (strings(value.requested) &&
+        new Set(value.requested).size === value.requested.length &&
+        value.requested.every((id) => !!requestFor(id)))) &&
     (value.investigations === undefined ||
       (object(value.investigations) &&
         Object.entries(value.investigations).every(([id, state]) => {

@@ -26,6 +26,8 @@ import InvestigationGuide from "./InvestigationGuide";
 import { investigationGuides, questionPreparation } from "../lib/investigation";
 import { caseThreads, inquiryDiscovered } from "../lib/narrative";
 import InvestigationInbox from "./InvestigationInbox";
+import RecordRequest from "./RecordRequest";
+import { requestFor } from "../lib/record-requests";
 import SoundControls from "./SoundControls";
 import CctvViewer from "./CctvViewer";
 import TimelineComparison from "./TimelineComparison";
@@ -53,6 +55,7 @@ import {
   isPublicRecord,
   worldDate,
   worldStage,
+  canReadRecord,
 } from "../lib/world";
 type DraftEdit = {
   episode: number;
@@ -116,6 +119,7 @@ function GameScreen({
   const [showGoals, setShowGoals] = useState(false);
   const [selected, setSelected] = useState<RecordFile | null>(null);
   const [recordWindow, setRecordWindow] = useState(0);
+  const [requestRecord, setRequestRecord] = useState<string | null>(null);
   const [boardSession, setBoardSession] = useState(0);
   const [help, setHelp] = useState(false);
   const [showHint, setShowHint] = useState(false);
@@ -360,6 +364,11 @@ function GameScreen({
     }
   };
   const openRecord = (r: RecordFile) => {
+    if (!view || !canReadRecord(r, view.progress)) {
+      if (view && worldStage(view.progress) >= 4 && requestFor(r.id))
+        setRequestRecord(r.id);
+      return;
+    }
     sound.play("open");
     setRecordWindow((n) => n + 1);
     setSelected(r);
@@ -443,7 +452,7 @@ function GameScreen({
   const latestDelivery = deliveries[worldStage(p) - 1];
   const unreadAttachments = deliveries
     .slice(0, worldStage(p))
-    .flatMap((d) => deliveryRecords(d.episode))
+    .flatMap((d) => deliveryRecords(d.episode, p))
     .filter((r) => !p.read.includes(r.id)).length;
   const makeDraft = (q: Question): Draft =>
     p.drafts[e.id]?.[q.id] ?? {
@@ -714,6 +723,7 @@ function GameScreen({
                 key={p.started ? "playing" : "new"}
                 progress={p}
                 onOpen={openRecord}
+                onRequest={setRequestRecord}
               />
             </div>
             {tab === "notes" && (
@@ -1514,6 +1524,28 @@ function GameScreen({
               onNotes={() => {
                 setActiveInvestigation(null);
                 goTab("deductions");
+              }}
+            />
+          </Dialog>
+        )}
+        {requestRecord && (
+          <Dialog label="원본 조회 요청" onClose={() => setRequestRecord(null)}>
+            <RecordRequest
+              key={requestRecord}
+              record={requestRecord}
+              onSubmit={async (text) => {
+                const record = requestRecord;
+                const data = await send({
+                  type: "request-record",
+                  record,
+                  text,
+                });
+                if (!data) return false;
+                setRequestRecord(null);
+                setRecordWindow((n) => n + 1);
+                setSelected(recordById(record)!);
+                void send({ type: "read", record });
+                return true;
               }}
             />
           </Dialog>

@@ -9,7 +9,7 @@ import {
   unlocked,
 } from "../lib/game";
 import { walkthrough, restoredPaperOrder, cctvAlignment } from "./walkthrough";
-import { investigationActions } from "./walkthrough";
+import { investigationActions, acquisitionActions } from "./walkthrough";
 import { communityPosts } from "../lib/community";
 import { episodeStories } from "../lib/stories";
 import { existsSync } from "node:fs";
@@ -89,7 +89,10 @@ test("the community is a persistent dated world; private sources arrive separate
     );
     assert.equal(deliveries[ep.id - 1].episode, ep.id);
     for (const record of deliveryRecords(ep.id)) {
-      assert.equal(canReadRecord(record, progress), true);
+      assert.equal(
+        canReadRecord(record, progress),
+        !["4-3", "4-4", "4-5"].includes(record.id),
+      );
       assert.equal(board.includes(record), false);
       privateIds.push(record.id);
     }
@@ -330,6 +333,8 @@ test("full campaign: mistakes, complete supporting evidence, hints, reopen, pers
     p = failed.progress;
     for (let i = 0; i < 4; i++) p = applyAction(p, { type: "hint" }).progress;
     assert.equal(p.hints[ep.id], 3);
+    for (const action of acquisitionActions(ep.id))
+      p = applyAction(p, action).progress;
     for (const r of ep.records) {
       if (r.shredded)
         p = applyAction(p, {
@@ -790,6 +795,8 @@ test("alternative and corroborating proofs remain valid through draft validation
       active: ep,
       solved: episodes.slice(0, ep - 1).map((e) => e.id),
     };
+    for (const action of acquisitionActions(ep))
+      p = applyAction(p, action).progress;
     for (const source of evidence) {
       if (recordById(source)?.shredded)
         p = applyAction(p, {
