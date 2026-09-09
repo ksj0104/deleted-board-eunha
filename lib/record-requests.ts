@@ -34,6 +34,8 @@ export const recordRequests = [
 ];
 export const requestFor = (record: string) =>
   recordRequests.find((item) => item.record === record);
+export const missingRequestSources = (p: Progress, record: string) =>
+  requestFor(record)?.sources.filter((id) => !p.read.includes(id)) ?? [];
 export function acquiredRecord(p: Progress, record: string) {
   return (
     !requestFor(record) ||

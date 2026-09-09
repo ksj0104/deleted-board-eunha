@@ -68,13 +68,14 @@ export default function CommunityBoard({
   const arrivals = available.filter((record) => !accepted.has(record.id));
   const boards = ["전체", ...new Set(source.map((r) => r.board))];
   const keywords = searchKeywords(query);
+  const hasFilters = !!query.trim() || board !== "전체" || photos;
+  const matchesFilters = (r: RecordFile) =>
+    (board === "전체" || board === r.board) &&
+    (!photos || !!r.photo) &&
+    matchesRecordSearch(r, keywords);
+  const hiddenArrivals = arrivals.filter((r) => !matchesFilters(r)).length;
   const filtered = source
-    .filter(
-      (r) =>
-        (board === "전체" || board === r.board) &&
-        (!photos || r.photo) &&
-        matchesRecordSearch(r, keywords),
-    )
+    .filter(matchesFilters)
     .sort((a, b) =>
       sort === "comments"
         ? (b.comments?.length ?? 0) - (a.comments?.length ?? 0) ||
@@ -177,6 +178,54 @@ export default function CommunityBoard({
               </label>
             </div>
           </div>
+          {hasFilters && (
+            <div
+              className="active-filters"
+              role="group"
+              aria-label="현재 게시판 필터"
+            >
+              <strong>현재 필터</strong>
+              {query.trim() && (
+                <button
+                  onClick={() => {
+                    setQuery("");
+                    setPage(1);
+                  }}
+                  aria-label={`검색어 ${query} 해제`}
+                >
+                  검색: {query} ×
+                </button>
+              )}
+              {board !== "전체" && (
+                <button
+                  onClick={() => {
+                    setBoard("전체");
+                    setPage(1);
+                  }}
+                  aria-label={`분류 ${board} 해제`}
+                >
+                  {board} ×
+                </button>
+              )}
+              {photos && (
+                <button
+                  onClick={() => {
+                    setPhotos(false);
+                    setPage(1);
+                  }}
+                >
+                  사진 필터 해제 ×
+                </button>
+              )}
+              <button className="text-button" onClick={reset}>
+                모든 필터 해제
+              </button>
+              <p role="status">
+                전체 {source.length}개 중 {filtered.length}개 표시 · 필터는
+                사건을 이동해도 유지됩니다.
+              </p>
+            </div>
+          )}
           <div className="feed-summary">
             <span>총 {filtered.length}개의 글</span>
             <button
@@ -197,7 +246,11 @@ export default function CommunityBoard({
             <div className="board-arrivals">
               <p role="status">
                 {arrivals.length}개의 새 글이 도착했습니다.
-                <small>검색 조건과 페이지를 유지해 목록에 더합니다.</small>
+                <small>
+                  {hiddenArrivals
+                    ? `새 글 ${hiddenArrivals}개가 현재 필터에 가려져 있습니다.`
+                    : "검색 조건과 페이지를 유지해 목록에 더합니다."}
+                </small>
               </p>
               <button
                 className="secondary"
@@ -211,6 +264,22 @@ export default function CommunityBoard({
               >
                 새 글 {arrivals.length}개 반영
               </button>
+              {hasFilters && (
+                <button
+                  className="primary"
+                  onClick={() => {
+                    reset();
+                    setSort("newest");
+                    setAcceptedIds(available.map((record) => record.id));
+                    setArrivalNotice(
+                      `필터를 해제하고 새 글 ${arrivals.length}개를 최신순으로 반영했습니다.`,
+                    );
+                    feedHeading.current?.focus({ preventScroll: true });
+                  }}
+                >
+                  필터 해제하고 새 글 보기
+                </button>
+              )}
             </div>
           )}
           <div className="record-table community-table">

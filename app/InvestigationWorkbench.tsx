@@ -50,6 +50,7 @@ export default function InvestigationWorkbench({
   const [wipe, setWipe] = useState(50);
   const sound = useSound();
   const complete = saved.confirmed && !practice;
+  const quickPlacement = desk.episode >= 5;
   const material = desk.clues.filter(
     (clue) => clue.source === source && clue.id !== "door-tested",
   );
@@ -170,19 +171,28 @@ export default function InvestigationWorkbench({
         {...dropProps(id)}
         data-slot={id}
       >
-        <button
-          type="button"
-          className="slot-target"
-          disabled={complete || checking || !chosen}
-          onClick={() => place(id)}
-          aria-label={`${target.label}에 놓기`}
-        >
-          <span>{target.label}</span>
-          <strong>
-            {value?.value ??
-              (chosen ? "선택한 항목 놓기 ＋" : "원본에서 항목을 선택하세요")}
-          </strong>
-        </button>
+        {quickPlacement ? (
+          <div className="slot-target">
+            <span>{target.label}</span>
+            <strong>
+              {value?.value ?? "원문 항목의 ‘연결할 위치’에서 고르세요"}
+            </strong>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="slot-target"
+            disabled={complete || checking || !chosen}
+            onClick={() => place(id)}
+            aria-label={`${target.label}에 놓기`}
+          >
+            <span>{target.label}</span>
+            <strong>
+              {value?.value ??
+                (chosen ? "선택한 항목 놓기 ＋" : "원본에서 항목을 선택하세요")}
+            </strong>
+          </button>
+        )}
         {value && (
           <footer>
             <button
@@ -329,12 +339,51 @@ export default function InvestigationWorkbench({
                 )}
                 {material.length > 0 && (
                   <p className="material-help">
-                    항목을 눌러 펼친 뒤 비교 칸을 누르세요. 마우스로 끌어 놓아도
-                    됩니다.
+                    {quickPlacement
+                      ? "열람한 원문의 항목입니다. 연결할 위치를 한 번 고르면 조사판에 바로 반영됩니다."
+                      : "항목을 눌러 펼친 뒤 비교 칸을 누르세요. 마우스로 끌어 놓아도 됩니다."}
                   </p>
                 )}
                 <div className="material-tray">
                   {material.map((clue) => {
+                    if (quickPlacement) {
+                      const position =
+                        Object.entries(state.placements).find(
+                          ([, id]) => id === clue.id,
+                        )?.[0] ?? "";
+                      return (
+                        <div
+                          className="clue-card inspected quick-clue"
+                          key={clue.id}
+                        >
+                          <small>
+                            {source} · {clue.label}
+                          </small>
+                          <strong>{clue.value}</strong>
+                          <span>{clue.detail}</span>
+                          <label>
+                            연결할 위치
+                            <select
+                              aria-label={`${clue.label} 연결할 위치`}
+                              value={position}
+                              disabled={complete || checking}
+                              onChange={(event) =>
+                                event.target.value
+                                  ? chooseClue(event.target.value, clue.id)
+                                  : position && remove(position)
+                              }
+                            >
+                              <option value="">아직 연결하지 않음</option>
+                              {desk.slots.map((slot) => (
+                                <option key={slot.id} value={slot.id}>
+                                  {slot.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </div>
+                      );
+                    }
                     const inspected =
                       state.inspected.includes(clue.id) || complete;
                     return (
@@ -393,9 +442,11 @@ export default function InvestigationWorkbench({
           </aside>
           <div className="workbench-surface">
             <p className="active-clue" aria-live="polite">
-              {chosen
-                ? `선택: ${desk.clues.find((clue) => clue.id === chosen)?.value} · 놓을 칸을 누르세요.`
-                : "원본에서 발견한 항목을 이곳에 연결하세요."}
+              {quickPlacement
+                ? "원문 항목 옆에서 고른 위치가 아래 조사판에 반영됩니다."
+                : chosen
+                  ? `선택: ${desk.clues.find((clue) => clue.id === chosen)?.value} · 놓을 칸을 누르세요.`
+                  : "원본에서 발견한 항목을 이곳에 연결하세요."}
             </p>
             {desk.id === "profiles" && (
               <div className="comparison-pairs">

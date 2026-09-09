@@ -23,7 +23,7 @@ test("record requests: chapter four requires identified targets and prior source
   assert.throws(
     () =>
       applyAction(p, { type: "request-record", record: "4-3", text: "V03" }),
-    /조회/,
+    /조회 전 원문 확인이 필요합니다:.*3월 18일 동문 외부 보도 폐쇄/,
   );
   assert.throws(
     () =>
@@ -82,7 +82,7 @@ test("record requests: acquisition survives failed saves and reload, while old r
   const before = raw;
   await assert.rejects(
     client.request({ type: "request-record", record: "4-3", text: "V03" }),
-    /保存|저장/,
+    /저장/,
   );
   assert.equal(raw, before);
   fail = false;

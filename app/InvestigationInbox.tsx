@@ -33,6 +33,7 @@ export default function InvestigationInbox({
           ...deliveryRecords(d.episode, progress).flatMap((r) => [
             r.title,
             ...readableParagraphs(r, progress),
+            ...(r.comments ?? []).map((comment) => comment.text),
             ...(r.surveillance?.frames.map((frame) => frame.alt) ?? []),
             ...(r.surveillance
               ? inspectionCaptures.map((frame) => frame.alt)
@@ -113,9 +114,7 @@ export default function InvestigationInbox({
               </div>
             </dl>
             <p className="delivery-body">{selected.body}</p>
-            <h4>
-              첨부된 기록 {deliveryRecords(selected.episode, progress).length}개
-            </h4>
+            <h4 aria-live="polite">{`첨부된 기록 ${deliveryRecords(selected.episode, progress).length}개`}</h4>
             {selected.episode === 4 && (
               <section className="inbox-requests" aria-label="추가 원문 조회">
                 <h4>조회할 원문</h4>

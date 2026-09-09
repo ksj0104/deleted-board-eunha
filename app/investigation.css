@@ -1270,3 +1270,193 @@
     text-align: right;
   }
 }
+.active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 14px;
+  margin: 14px 0;
+  background: #e5ecdf;
+  border: 1px solid #8caa96;
+  color: #283c37;
+}
+.active-filters button {
+  border: 1px solid #8caa96;
+  border-radius: 5px;
+  padding: 8px 12px;
+  background: #fffef9;
+  color: #283c37;
+  overflow-wrap: anywhere;
+}
+.active-filters p {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.875rem;
+}
+.board-arrivals {
+  flex-wrap: wrap;
+}
+.board-arrivals p {
+  flex: 1 1 100%;
+}
+.request-prerequisites {
+  padding: 16px;
+  margin: 18px 0;
+  border: 1px solid #809874;
+  background: #e7ecdf;
+  color: #293b30;
+}
+.request-prerequisites button {
+  display: block;
+  margin-top: 10px;
+  text-align: left;
+}
+.input-format {
+  flex-basis: 100%;
+  font-size: 0.875rem;
+  margin: 6px 0 0;
+}
+.code-entry {
+  flex-wrap: wrap;
+}
+.input-format[role="alert"] {
+  color: var(--coral);
+  font-weight: 600;
+}
+.required-step {
+  display: block;
+  margin: 6px 0;
+  font-size: 0.875rem;
+}
+.modal-return-context {
+  margin: 0 32px 18px 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+.comparison-entry-actions {
+  display: grid;
+  gap: 10px;
+}
+.quick-clue label {
+  display: grid;
+  gap: 5px;
+  margin-top: 12px;
+  font-size: 0.875rem;
+}
+.quick-clue select,
+.shred-position-picker select {
+  max-width: 100%;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px;
+  background: #fffdf5;
+  color: #293b30;
+  border: 1px solid #708572;
+  font: inherit;
+}
+.shred-position-picker {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0;
+  font-size: 0.875rem;
+}
+.shred-strips.fit-paper {
+  width: 100%;
+  gap: clamp(2px, 0.5vw, 7px);
+}
+.fit-paper .shred-strip {
+  min-width: 0;
+}
+.fit-paper .shred-piece-label {
+  font-size: 0.75rem;
+}
+.sound-preview-status {
+  min-height: 2em;
+  color: var(--text);
+}
+.clue-card:disabled,
+.slot-target:disabled {
+  opacity: 1;
+}
+.ending-return {
+  margin-top: 26px;
+}
+.story-background summary {
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--text);
+}
+.story-first-steps {
+  border-top: 1px solid var(--line);
+  margin-top: 18px;
+  padding-top: 12px;
+}
+.story-first-steps h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+.story-first-steps ol {
+  padding-left: 24px;
+  margin: 0 0 24px;
+  line-height: 1.8;
+}
+
+/* Reading and control labels must remain legible during a long investigation. */
+.document-body,
+.artifact-transcript,
+.story-paragraphs,
+.modal-prose,
+.delivery-body {
+  font-size: 1rem;
+}
+.investigation-entry p,
+.investigation-source-tabs button,
+.source-heading .secondary,
+.material-help,
+.clue-card > span,
+.clue-card > small,
+.artifact-fields summary,
+.artifact-fields p,
+.investigation-actions,
+.delivery-list small,
+.delivery-attachment small,
+.question-guidance,
+.sound-description,
+.sound-settings p {
+  font-size: 0.875rem;
+}
+.investigation-source-tabs small,
+.source-heading > span,
+.investigation-entry span {
+  font-size: 0.75rem;
+}
+.community-search-help,
+.community-selects label,
+.board-arrivals small {
+  font-size: 0.875rem;
+  color: #415c4d;
+}
+.dialog .document-meta,
+.dialog .document-kicker {
+  font-size: 0.875rem;
+}
+@media (max-width: 700px) {
+  .investigation-entry {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .workbench-columns {
+    grid-template-columns: 1fr;
+  }
+  .workbench-materials {
+    max-height: none;
+    overflow: visible;
+  }
+  .active-filters button {
+    min-height: 44px;
+  }
+  .shred-strips.fit-paper .shred-piece-label {
+    font-size: 0.75rem;
+  }
+}

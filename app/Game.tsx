@@ -375,6 +375,31 @@ function GameScreen({
     if (!view?.progress.read.includes(r.id))
       void send({ type: "read", record: r.id });
   };
+  const clearInvestigationWindows = () => {
+    flushNote();
+    setTool(null);
+    setSelected(null);
+    setActiveInvestigation(null);
+    setRequestRecord(null);
+    setShowComparison(false);
+    setShowGoals(false);
+    setShowHint(false);
+    setShowResolution(null);
+    setShowPrologue(false);
+    setHelp(false);
+    setFocusedQuestion(undefined);
+  };
+  const openEnding = () => {
+    clearInvestigationWindows();
+    setTab("cases");
+    setShowEnding(true);
+  };
+  const closeEnding = () => {
+    clearInvestigationWindows();
+    setShowEnding(false);
+    setTab("cases");
+    mainRef.current?.focus();
+  };
   if (!view)
     return (
       <div className="loading-screen">
@@ -422,6 +447,11 @@ function GameScreen({
     solved = p.solved.includes(e.id);
   const evidence = p.pinned.map(recordById).filter((r): r is RecordFile => !!r);
   const caseInvestigation = investigationForEpisode(e.id);
+  const directInvestigationPending =
+    !solved &&
+    (caseInvestigation
+      ? !investigationState(p, caseInvestigation).confirmed
+      : e.id === 2 && !calibrationFor(p).confirmed);
   const recordInvestigation = selected
     ? investigationForRecord(selected.id)
     : undefined;
@@ -816,10 +846,7 @@ function GameScreen({
                 </div>
                 <div className="campaign-actions">
                   {p.solved.length === 8 && (
-                    <button
-                      className="primary"
-                      onClick={() => setShowEnding(true)}
-                    >
+                    <button className="primary" onClick={openEnding}>
                       {view.ending
                         ? "결말 다시 읽기"
                         : "최종 공개 범위 결정하기"}{" "}
@@ -1012,6 +1039,11 @@ function GameScreen({
                 <div>
                   <span>직접 조사</span>
                   <h3>{caseInvestigation.title}</h3>
+                  {directInvestigationPending && (
+                    <strong className="required-step">
+                      검증 전 필수 · 직접 조사 1개를 완료해 주세요
+                    </strong>
+                  )}
                   <p>
                     {investigationState(p, caseInvestigation).confirmed
                       ? "조사 결과를 확인했습니다. 수집한 단서를 바탕으로 아래 질문에 답하세요."
@@ -1025,6 +1057,39 @@ function GameScreen({
                 >
                   직접 조사 열기 ↗
                 </button>
+              </section>
+            )}
+            {e.id === 2 && (
+              <section className="investigation-entry">
+                <div>
+                  <span>직접 조사</span>
+                  <h3>CCTV와 센서 기록 대조</h3>
+                  <p>
+                    {directInvestigationPending
+                      ? "검증 전 필수 · 영상과 센서의 같은 순간을 연결하고 ‘대조 확인’을 눌러 주세요. 답안은 먼저 작성해도 됩니다."
+                      : "기록 대조를 완료했습니다."}
+                  </p>
+                </div>
+                <div className="comparison-entry-actions">
+                  {["2-1", "2-2"]
+                    .filter((id) => !p.read.includes(id))
+                    .map((id) => (
+                      <button
+                        key={id}
+                        className="secondary"
+                        onClick={() => openRecord(recordById(id)!)}
+                      >
+                        {recordById(id)!.title} 먼저 읽기 ↗
+                      </button>
+                    ))}
+                  <button
+                    className="secondary"
+                    disabled={!comparisonReady(p)}
+                    onClick={() => setShowComparison(true)}
+                  >
+                    기록 대조 열기 ↗
+                  </button>
+                </div>
               </section>
             )}
             {failedDrafts.length > 0 && (
@@ -1135,6 +1200,9 @@ function GameScreen({
                         typeof draft.answer === "string" ? draft.answer : ""
                       }
                       placeholder={q.placeholder!}
+                      format={
+                        e.id === 2 && q.id === "time" ? "time" : undefined
+                      }
                       label={q.prompt}
                       disabled={blocking > 0}
                       onCommit={(answer) =>
@@ -1205,6 +1273,12 @@ function GameScreen({
             )}
             <div className="submit-row">
               <p>
+                {directInvestigationPending && (
+                  <strong className="required-step">
+                    직접 조사 완료 후 검증할 수 있습니다. 위의 조사 버튼으로
+                    이어가세요.
+                  </strong>
+                )}
                 검증할 추리 준비{" "}
                 {
                   discoveredQuestions.filter((q) => {
@@ -1221,6 +1295,7 @@ function GameScreen({
                 disabled={
                   blocking > 0 ||
                   failedDrafts.some((d) => d.episode === e.id) ||
+                  directInvestigationPending ||
                   !discoveredQuestions.length
                 }
               >
@@ -1484,6 +1559,11 @@ function GameScreen({
             label={workbench.title}
             onClose={() => setActiveInvestigation(null)}
           >
+            <p className="modal-return-context">
+              {selected
+                ? `‘${selected.title}’ 위에서 조사 중 · 닫으면 원문으로 돌아갑니다.`
+                : "추리 노트에서 조사 중 · 닫으면 작성 중인 노트로 돌아갑니다."}
+            </p>
             <InvestigationWorkbench
               key={workbench.id}
               desk={workbench}
@@ -1523,6 +1603,7 @@ function GameScreen({
               }}
               onNotes={() => {
                 setActiveInvestigation(null);
+                setSelected(null);
                 goTab("deductions");
               }}
             />
@@ -1533,6 +1614,8 @@ function GameScreen({
             <RecordRequest
               key={requestRecord}
               record={requestRecord}
+              progress={p}
+              onRead={(id) => openRecord(recordById(id)!)}
               onSubmit={async (text) => {
                 const record = requestRecord;
                 const data = await send({
@@ -1677,8 +1760,7 @@ function GameScreen({
               disabled={pending > 0}
               onClick={() => {
                 if (showResolution === 8) {
-                  setShowResolution(null);
-                  setShowEnding(true);
+                  openEnding();
                 } else void visit(showResolution + 1, "inbox");
               }}
             >
@@ -1690,7 +1772,12 @@ function GameScreen({
           </Dialog>
         )}
         {showEnding && (
-          <Dialog wide label="마지막 기록" onClose={() => setShowEnding(false)}>
+          <Dialog
+            wide
+            label="마지막 기록"
+            closeLabel="엔딩 닫고 사건 목록으로"
+            onClose={closeEnding}
+          >
             <div className="eyebrow coral">THE LAST RECORD / EPILOGUE</div>
             {view.ending ? (
               <>
@@ -1760,6 +1847,12 @@ function GameScreen({
                 </div>
               </>
             )}
+            <button
+              className="primary full ending-return"
+              onClick={closeEnding}
+            >
+              사건 목록으로
+            </button>
           </Dialog>
         )}
         {showReset && (

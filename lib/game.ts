@@ -9,7 +9,12 @@ import {
 } from "./restoration";
 import { solutions, resolutions, endings, type Solution } from "./solutions";
 import { canReadRecord } from "./world";
-import { migrateRequests, requestMatches } from "./record-requests";
+import {
+  migrateRequests,
+  requestMatches,
+  missingRequestSources,
+} from "./record-requests";
+import { normalizeTime } from "./time-input";
 import { automaticEvidence } from "./automatic-evidence";
 import {
   investigationById,
@@ -93,8 +98,7 @@ const normalize = (v: string) =>
 function normalizedAnswer(value: string, format?: Solution["format"]) {
   const text = value.normalize("NFKC").trim();
   if (format === "digits") return /^\d{4}$/.test(text) ? text : null;
-  if (format === "time")
-    return /^([01]\d|2[0-3]):[0-5]\d$/.test(text) ? text : null;
+  if (format === "time") return normalizeTime(text);
   if (format === "won") {
     const amount = text.replace(/\s/g, "").replace(/^₩/, "");
     const tenThousands = /^(\d+)만(?:원)?$/.exec(amount);
@@ -191,9 +195,14 @@ export function applyAction(
     p.introduced = [...new Set([...(p.introduced ?? []), ep])];
   else if (action.type === "visit") p.active = ep;
   else if (action.type === "request-record") {
+    const missing = missingRequestSources(p, action.record ?? "");
+    if (missing.length)
+      throw new Error(
+        `조회 전 원문 확인이 필요합니다: ${missing.map((id) => recordById(id)!.title).join(" · ")}`,
+      );
     if (!action.record || !requestMatches(p, action.record, action.text))
       throw new Error(
-        "조회 대상을 확인하지 못했습니다. 관련 원문을 읽고 식별 정보를 다시 대조해 주세요.",
+        "조회 대상과 일치하는 기록이 없습니다. 입력한 식별 정보를 원문과 다시 대조해 주세요.",
       );
     p.requested = [...new Set([...p.requested!, action.record])];
   } else if (

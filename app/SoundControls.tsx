@@ -12,6 +12,7 @@ export default function SoundControls() {
     () => DEFAULT_SOUND_SETTINGS,
   );
   const [open, setOpen] = useState(false);
+  const [previewCount, setPreviewCount] = useState(0);
   const audible = settings.enabled && settings.volume > 0;
   const enable = (enabled: boolean) => {
     sound.setEnabled(enabled);
@@ -85,10 +86,16 @@ export default function SoundControls() {
               onClick={() => {
                 sound.unlock();
                 sound.play("collect");
+                setPreviewCount((count) => count + 1);
               }}
             >
               소리 미리 듣기
             </button>
+            <p role="status" className="sound-preview-status">
+              {previewCount > 0
+                ? `미리 듣기 ${previewCount}회 요청 · 설정 음량 ${Math.round(settings.volume * 100)}%`
+                : "미리 듣기를 누르면 작동 상태가 여기에 표시됩니다."}
+            </p>
             <p>
               설정은 이 브라우저에 저장됩니다. 메모 입력과 자동 저장은 조용히
               진행됩니다.

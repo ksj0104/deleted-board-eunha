@@ -5,8 +5,10 @@ import React, {
   useEffect,
   useRef,
   useState,
+  useId,
 } from "react";
 import { useSound } from "./sound-context";
+import { normalizeTime } from "../lib/time-input";
 export const GameErrorContext = createContext("");
 let openDialogs = 0;
 let previousOverflow = "";
@@ -30,12 +32,14 @@ export function Dialog({
   onClose,
   wide = false,
   focusTarget,
+  closeLabel = "닫기",
 }: {
   label: string;
   children: React.ReactNode;
   onClose: () => void;
   wide?: boolean;
   focusTarget?: string;
+  closeLabel?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const backdropPress = useRef<{
@@ -138,7 +142,7 @@ export function Dialog({
         if (press?.released && e.button === 0 && isBackdropEvent(e)) close();
       }}
     >
-      <button className="close-button" aria-label="닫기" onClick={close}>
+      <button className="close-button" aria-label={closeLabel} onClick={close}>
         ×
       </button>
       {error && (
@@ -196,14 +200,19 @@ export function CodeInput({
   label,
   disabled,
   onCommit,
+  format,
 }: {
   value: string;
   placeholder: string;
   label: string;
   disabled: boolean;
   onCommit: (v: string) => void;
+  format?: "time";
 }) {
+  const description = useId();
   const [text, setText] = useState(value);
+  const [attempted, setAttempted] = useState(false);
+  const invalid = format === "time" && !!text.trim() && !normalizeTime(text);
   const [previousValue, setPreviousValue] = useState(value);
   if (previousValue !== value) {
     setPreviousValue(value);
@@ -214,6 +223,8 @@ export function CodeInput({
       className="code-entry"
       onSubmit={(e) => {
         e.preventDefault();
+        setAttempted(true);
+        if (invalid) return;
         onCommit(text);
       }}
     >
@@ -223,7 +234,12 @@ export function CodeInput({
         placeholder={placeholder}
         value={text}
         disabled={disabled}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value);
+          setAttempted(false);
+        }}
+        aria-invalid={(attempted && invalid) || undefined}
+        aria-describedby={format === "time" ? description : undefined}
         autoComplete="off"
       />
       <button
@@ -235,6 +251,17 @@ export function CodeInput({
       </button>
       {text !== value && (
         <span className="input-unsaved">적용하면 저장됩니다</span>
+      )}
+      {format === "time" && (
+        <p
+          id={description}
+          className="input-format"
+          role={attempted && invalid ? "alert" : undefined}
+        >
+          {attempted && invalid
+            ? "시각 형식을 확인하세요. 00:00~23:59 사이의 HH:MM 또는 HH:MM:SS로 입력할 수 있습니다."
+            : "입력 예: 09:30 또는 09:30:00 · 초를 생략하면 00초로 읽습니다."}
+        </p>
       )}
     </form>
   );

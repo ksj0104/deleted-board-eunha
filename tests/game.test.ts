@@ -953,7 +953,29 @@ test("numeric formats accept real amounts without silently deleting arbitrary cu
       answer,
     );
   }
-  for (const answer of ["20:14원", "20:1,4", "20:14 extra", "27:14"]) {
+  for (const answer of [
+    "20:14",
+    "20:14:00",
+    "２０：１４：００",
+    " 20:14:00 ",
+  ]) {
+    assert.equal(
+      grade(2, { time: { answer, evidence: [] } }, []).time.answer,
+      true,
+      answer,
+    );
+  }
+  for (const answer of [
+    "20:14원",
+    "20:1,4",
+    "20:14 extra",
+    "27:14",
+    "20:14:01",
+    "20:14:60",
+    "20:14:00 extra",
+    "20:14:000",
+    "24:14:00",
+  ]) {
     assert.equal(
       grade(2, { time: { answer, evidence: [] } }, []).time.answer,
       false,

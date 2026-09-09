@@ -24,6 +24,7 @@ export default function ShreddedDocument({
   const [status, setStatus] = useState("배치 자동 저장");
   const [failed, setFailed] = useState(false);
   const [hint, setHint] = useState(false);
+  const [fit, setFit] = useState(true);
   const [message, setMessage] = useState("");
   const drag = useRef<number | null>(null);
   const suppressClickUntil = useRef(0);
@@ -122,6 +123,14 @@ export default function ShreddedDocument({
             종이를 좌우로 밀어 볼 수 있습니다.
           </p>
           <div className="shred-toolbar">
+            <button
+              className="secondary"
+              type="button"
+              aria-pressed={fit}
+              onClick={() => setFit(!fit)}
+            >
+              {fit ? "조각 크게 보기" : "전체 조각 한눈에 보기"}
+            </button>
             <span role="status">
               {practice ? "다시 맞추기 · 수집한 증거는 보존됩니다" : status}
             </span>
@@ -155,6 +164,30 @@ export default function ShreddedDocument({
               ? "조각 하나를 고른 뒤 바꿀 자리를 선택하세요."
               : `${selected + 1}번 자리 선택됨 · 바꿀 조각을 누르세요. 같은 조각을 누르면 선택을 취소합니다.`}
           </p>
+          <label className="shred-position-picker">
+            선택한 조각과 자리를 바꿀 위치
+            <select
+              aria-label="선택한 조각과 교환할 자리"
+              value=""
+              disabled={selected === null || checking}
+              onChange={(event) => {
+                if (selected !== null && event.target.value !== "")
+                  swap(selected, Number(event.target.value));
+              }}
+            >
+              <option value="">
+                {selected === null
+                  ? "먼저 조각을 선택하세요"
+                  : `${selected + 1}번 조각과 바꿀 자리 선택`}
+              </option>
+              {order.map((id, index) => (
+                <option key={id} value={index} disabled={index === selected}>
+                  {index + 1}번 · 조각{" "}
+                  {doc.pieces.find((piece) => piece.id === id)!.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </>
       )}
       <div
@@ -163,12 +196,13 @@ export default function ShreddedDocument({
         aria-label="종이 조각 작업대, 가로 스크롤 가능"
       >
         <div
-          className={`shred-strips ${complete ? "assembled" : ""}`}
+          className={`shred-strips ${complete ? "assembled" : ""} ${fit ? "fit-paper" : ""}`}
           style={{
             gridTemplateColumns: order
-              .map(
-                (id) =>
-                  `${(doc.pieces.find((piece) => piece.id === id)?.width ?? 208) / 2}px`,
+              .map((id) =>
+                fit
+                  ? `${doc.pieces.find((piece) => piece.id === id)?.width ?? 208}fr`
+                  : `${(doc.pieces.find((piece) => piece.id === id)?.width ?? 208) / 2}px`,
               )
               .join(" "),
           }}
