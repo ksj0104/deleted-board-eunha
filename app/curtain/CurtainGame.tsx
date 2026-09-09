@@ -1304,7 +1304,7 @@ function ArchivePuzzle({ state, send, check }: PuzzleProps) {
                 창문 하나는 남겨 두세요.”
               </p>
               <div className="cc-author-reveal">
-                <b>정다은 作</b>
+                <b aria-hidden={!revealed}>정다은 作</b>
                 <div
                   className="cc-cover-label"
                   style={{ clipPath: `inset(0 ${state.peel}% 0 0)` }}

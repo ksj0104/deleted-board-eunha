@@ -133,7 +133,9 @@ test("Curtain UI: complete all five chapters through visible controls, restore d
   await user.click(screen.getByRole("button", { name: /계단 서랍/ }));
   assert.equal(screen.queryByRole("slider", { name: /덧붙인/ }), null);
   await user.click(screen.getByRole("button", { name: /세 칸 창문 서랍/ }));
+  assert.equal(screen.getByText("정다은 作").getAttribute("aria-hidden"), "true");
   range("덧붙인 표지", 100);
+  assert.equal(screen.getByText("정다은 作").getAttribute("aria-hidden"), "false");
   await user.click(screen.getByRole("button", { name: /다음 장으로/ }));
   await user.click(screen.getByRole("button", { name: /이도윤 음향 담당/ }));
   await user.click(
